@@ -225,6 +225,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
+SET row_security = off
 AS $$
   SELECT family_id
   FROM family_members
@@ -237,6 +238,7 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
+SET row_security = off
 AS $$
   SELECT family_id
   FROM family_members
@@ -250,11 +252,27 @@ LANGUAGE sql
 STABLE
 SECURITY DEFINER
 SET search_path = public
+SET row_security = off
 AS $$
   SELECT family_id
   FROM family_members
   WHERE user_id = auth.uid()
     AND role = 'owner';
+$$;
+
+CREATE OR REPLACE FUNCTION public.family_has_no_members(family_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+SET row_security = off
+AS $$
+  SELECT NOT EXISTS (
+    SELECT 1
+    FROM family_members
+    WHERE family_id = family_uuid
+  );
 $$;
 
 CREATE OR REPLACE FUNCTION public.recipe_family_id(recipe_uuid UUID)
@@ -313,11 +331,7 @@ CREATE POLICY "Creators can add themselves as first owner"
   WITH CHECK (
     user_id = auth.uid()
     AND role = 'owner'
-    AND NOT EXISTS (
-      SELECT 1
-      FROM family_members existing
-      WHERE existing.family_id = family_members.family_id
-    )
+    AND public.family_has_no_members(family_id)
   );
 
 CREATE POLICY "Owners can update family members"
