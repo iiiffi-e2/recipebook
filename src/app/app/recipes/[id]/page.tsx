@@ -33,9 +33,17 @@ export default function RecipePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const recipe = useRecipe(id);
+  const { recipe, loading } = useRecipe(id);
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [activeStep, setActiveStep] = useState(0);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-sage border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!recipe) notFound();
 

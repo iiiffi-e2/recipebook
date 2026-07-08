@@ -101,9 +101,11 @@ export function useAllRecipes() {
 }
 
 export function useRecipe(id: string) {
-  const { recipes, configured } = useRecipesContext();
+  const { recipes, configured, loading: listLoading } = useRecipesContext();
   const [remoteRecipe, setRemoteRecipe] = useState<Recipe | undefined>();
-  const [loadingRemote, setLoadingRemote] = useState(false);
+  const [remoteStatus, setRemoteStatus] = useState<"idle" | "loading" | "done">(
+    "idle"
+  );
 
   const localRecipe = useMemo(() => {
     const fromList = recipes.find((recipe) => recipe.id === id);
@@ -114,34 +116,49 @@ export function useRecipe(id: string) {
     return undefined;
   }, [recipes, id, configured]);
 
+  // Reset remote lookup whenever the recipe id changes.
   useEffect(() => {
-    if (localRecipe || !configured) {
-      setRemoteRecipe(undefined);
-      return;
-    }
+    setRemoteRecipe(undefined);
+    setRemoteStatus("idle");
+  }, [id]);
+
+  useEffect(() => {
+    // Nothing to fetch if we already have it locally or aren't using a DB.
+    if (localRecipe || !configured) return;
+    // Wait for the recipe list to finish loading before deciding it's missing.
+    if (listLoading) return;
 
     let cancelled = false;
-    setLoadingRemote(true);
+    setRemoteStatus("loading");
 
     fetch(`/api/recipes/${id}`)
       .then((response) => (response.ok ? response.json() : null))
       .then((data) => {
-        if (!cancelled && data?.recipe) {
+        if (cancelled) return;
+        if (data?.recipe) {
           setRemoteRecipe(data.recipe as Recipe);
         }
+        setRemoteStatus("done");
       })
-      .finally(() => {
-        if (!cancelled) {
-          setLoadingRemote(false);
-        }
+      .catch(() => {
+        if (!cancelled) setRemoteStatus("done");
       });
 
     return () => {
       cancelled = true;
     };
-  }, [configured, id, localRecipe]);
+  }, [configured, id, localRecipe, listLoading]);
 
-  return localRecipe ?? remoteRecipe ?? (loadingRemote ? undefined : undefined);
+  const recipe = localRecipe ?? remoteRecipe;
+
+  // Only consider the lookup finished once the list has loaded and any
+  // remote fetch has resolved. This prevents a premature "not found".
+  const loading =
+    !recipe &&
+    configured &&
+    (listLoading || remoteStatus === "idle" || remoteStatus === "loading");
+
+  return { recipe, loading };
 }
 
 export function useSearchRecipes(query: string) {

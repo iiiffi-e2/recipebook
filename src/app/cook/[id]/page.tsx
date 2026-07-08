@@ -22,10 +22,18 @@ export default function CookingModePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const recipe = useRecipe(id);
+  const { recipe, loading } = useRecipe(id);
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [showIngredients, setShowIngredients] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-terracotta border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!recipe) notFound();
 
