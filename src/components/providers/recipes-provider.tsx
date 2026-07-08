@@ -9,9 +9,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { demoRecipes, searchRecipes as searchDemoRecipes } from "@/lib/demo-data";
+import { demoRecipes, demoCollections, searchRecipes as searchDemoRecipes } from "@/lib/demo-data";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import type { Recipe } from "@/lib/types";
+import type { Collection, Recipe } from "@/lib/types";
 
 interface FamilyInfo {
   familyId: string;
@@ -22,11 +22,14 @@ interface FamilyInfo {
 
 interface RecipesContextValue {
   recipes: Recipe[];
+  collections: Collection[];
   loading: boolean;
   configured: boolean;
   usingDatabase: boolean;
   family: FamilyInfo | null;
   refreshRecipes: () => Promise<void>;
+  refreshCollections: () => Promise<void>;
+  addCollection: (name: string, description?: string) => Promise<Collection | null>;
 }
 
 const RecipesContext = createContext<RecipesContextValue | null>(null);
@@ -34,8 +37,53 @@ const RecipesContext = createContext<RecipesContextValue | null>(null);
 export function RecipesProvider({ children }: { children: ReactNode }) {
   const configured = isSupabaseConfigured();
   const [recipes, setRecipes] = useState<Recipe[]>(configured ? [] : demoRecipes);
+  const [collections, setCollections] = useState<Collection[]>(
+    configured ? [] : demoCollections
+  );
   const [family, setFamily] = useState<FamilyInfo | null>(null);
   const [loading, setLoading] = useState(configured);
+
+  const refreshCollections = useCallback(async () => {
+    if (!configured) {
+      setCollections(demoCollections);
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/collections");
+      if (!response.ok) {
+        setCollections([]);
+        return;
+      }
+
+      const data = (await response.json()) as { collections?: Collection[] };
+      setCollections(data.collections ?? []);
+    } catch (error) {
+      console.error("Failed to refresh collections:", error);
+      setCollections([]);
+    }
+  }, [configured]);
+
+  const addCollection = useCallback(
+    async (name: string, description?: string): Promise<Collection | null> => {
+      if (!configured) return null;
+
+      const response = await fetch("/api/collections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description }),
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as { collection?: Collection };
+      if (data.collection) {
+        setCollections((prev) => [...prev, data.collection!]);
+      }
+      return data.collection ?? null;
+    },
+    [configured]
+  );
 
   const refreshRecipes = useCallback(async () => {
     if (!configured) {
@@ -70,18 +118,22 @@ export function RecipesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void refreshRecipes();
-  }, [refreshRecipes]);
+    void refreshCollections();
+  }, [refreshRecipes, refreshCollections]);
 
   const value = useMemo(
     () => ({
       recipes,
+      collections,
       loading,
       configured,
       usingDatabase: configured,
       family,
       refreshRecipes,
+      refreshCollections,
+      addCollection,
     }),
-    [recipes, loading, configured, family, refreshRecipes]
+    [recipes, collections, loading, configured, family, refreshRecipes, refreshCollections, addCollection]
   );
 
   return <RecipesContext.Provider value={value}>{children}</RecipesContext.Provider>;
@@ -174,4 +226,9 @@ export function useSearchRecipes(query: string) {
 export function useFamilyInfo() {
   const { family, refreshRecipes } = useRecipesContext();
   return { family, refreshRecipes };
+}
+
+export function useCollections() {
+  const { collections, addCollection, refreshCollections, usingDatabase } = useRecipesContext();
+  return { collections, addCollection, refreshCollections, usingDatabase };
 }

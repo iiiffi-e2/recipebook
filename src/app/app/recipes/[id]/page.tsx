@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,14 +17,17 @@ import {
   ArrowLeft,
   Play,
   Mic,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecipeHero } from "@/components/recipe-hero";
-import { useRecipe } from "@/lib/recipes";
+import { ServingsAdjuster } from "@/components/servings-adjuster";
+import { useRecipe, useRecipesContext, useCollections } from "@/lib/recipes";
 import { useAppStore } from "@/lib/store";
+import { scaleIngredients } from "@/lib/scale-ingredients";
 import { formatDuration, formatDate } from "@/lib/utils";
 
 export default function RecipePage({
@@ -34,8 +37,17 @@ export default function RecipePage({
 }) {
   const { id } = use(params);
   const { recipe, loading } = useRecipe(id);
+  const { usingDatabase } = useRecipesContext();
+  const { collections } = useCollections();
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [activeStep, setActiveStep] = useState(0);
+  const [targetServings, setTargetServings] = useState<number | null>(null);
+
+  const servings = targetServings ?? recipe?.servings ?? 4;
+  const scaledIngredients = useMemo(() => {
+    if (!recipe) return [];
+    return scaleIngredients(recipe.ingredients, recipe.servings, servings);
+  }, [recipe, servings]);
 
   if (loading) {
     return (
@@ -49,6 +61,7 @@ export default function RecipePage({
 
   const checked = checkedIngredients[recipe.id] || [];
   const totalTime = recipe.prepTime + recipe.cookTime;
+  const recipeCollections = collections.filter((c) => recipe.collections.includes(c.id));
 
   return (
     <div className="max-w-5xl">
@@ -86,6 +99,14 @@ export default function RecipePage({
             Start Cooking
           </Button>
         </Link>
+        {usingDatabase && (
+          <Link href={`/app/recipes/${recipe.id}/edit`}>
+            <Button variant="outline" size="lg">
+              <Pencil className="h-5 w-5" />
+              Edit Recipe
+            </Button>
+          </Link>
+        )}
         <Button variant="outline" size="lg">
           <Heart className="h-5 w-5" />
           {recipe.isFavorite ? "Favorited" : "Add to Favorites"}
@@ -104,7 +125,6 @@ export default function RecipePage({
           { icon: Clock, label: "Prep", value: formatDuration(recipe.prepTime) },
           { icon: ChefHat, label: "Cook", value: formatDuration(recipe.cookTime) },
           { icon: Timer, label: "Total", value: formatDuration(totalTime) },
-          { icon: Users, label: "Serves", value: String(recipe.servings) },
         ].map((item) => (
           <div key={item.label} className="rounded-2xl bg-ivory p-5 text-center shadow-[var(--shadow-soft)]">
             <item.icon className="mx-auto mb-2 h-5 w-5 text-sage" />
@@ -112,7 +132,22 @@ export default function RecipePage({
             <p className="font-serif text-xl font-medium">{item.value}</p>
           </div>
         ))}
+        <ServingsAdjuster
+          servings={servings}
+          originalServings={recipe.servings}
+          onChange={setTargetServings}
+        />
       </div>
+
+      {recipeCollections.length > 0 && (
+        <div className="mb-6 flex flex-wrap gap-2">
+          {recipeCollections.map((collection) => (
+            <Badge key={collection.id} variant="sage">
+              {collection.name}
+            </Badge>
+          ))}
+        </div>
+      )}
 
       {recipe.description && (
         <p className="mb-10 text-lg leading-relaxed text-charcoal-muted italic">
@@ -134,7 +169,7 @@ export default function RecipePage({
             <div className="lg:col-span-2">
               <h2 className="mb-6 font-serif text-2xl font-medium">Ingredients</h2>
               <ul className="space-y-3">
-                {recipe.ingredients.map((ingredient) => {
+                {scaledIngredients.map((ingredient) => {
                   const isChecked = checked.includes(ingredient.id);
                   return (
                     <li

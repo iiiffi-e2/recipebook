@@ -5,18 +5,20 @@ import { useMemo, useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { RecipeCard } from "@/components/recipe-card";
-import { demoCollections, categoryFilters } from "@/lib/demo-data";
-import { useAllRecipes, useSearchRecipes, useRecipesContext } from "@/lib/recipes";
+import { CollectionsSection } from "@/components/collections-section";
+import { categoryFilters } from "@/lib/demo-data";
+import { useAllRecipes, useSearchRecipes, useRecipesContext, useCollections } from "@/lib/recipes";
 import { cn } from "@/lib/utils";
 
 function CookbookContent() {
   const searchParams = useSearchParams();
   const searchQuery = searchParams.get("search") || "";
   const [activeCategory, setActiveCategory] = useState("All");
-  const [activeTag, setActiveTag] = useState<string | null>(null);
+  const [activeCollectionId, setActiveCollectionId] = useState<string | null>(null);
   const allRecipes = useAllRecipes();
   const searchedRecipes = useSearchRecipes(searchQuery);
   const { loading, usingDatabase } = useRecipesContext();
+  const { collections } = useCollections();
 
   const filteredRecipes = useMemo(() => {
     let recipes = searchQuery ? searchedRecipes : allRecipes;
@@ -27,49 +29,34 @@ function CookbookContent() {
       );
     }
 
-    if (activeTag) {
-      recipes = recipes.filter((r) => r.tags.includes(activeTag));
+    if (activeCollectionId) {
+      recipes = recipes.filter((r) => r.collections.includes(activeCollectionId));
     }
 
     return recipes;
-  }, [searchQuery, activeCategory, activeTag, allRecipes, searchedRecipes]);
+  }, [searchQuery, activeCategory, activeCollectionId, allRecipes, searchedRecipes]);
+
+  const subtitle = searchQuery
+    ? `${filteredRecipes.length} recipes found`
+    : usingDatabase
+      ? allRecipes.length > 0
+        ? `${allRecipes.length} recipes in your family cookbook`
+        : "Import your first recipe to get started"
+      : "Six generations of recipes, stories, and traditions";
 
   return (
     <>
       <Header
         title={searchQuery ? `Results for "${searchQuery}"` : "Our Cookbook"}
-        subtitle={
-          searchQuery
-            ? `${filteredRecipes.length} recipes found`
-            : "Six generations of recipes, stories, and traditions"
-        }
+        subtitle={subtitle}
         showSearch
       />
 
-      {/* Collections */}
       {!searchQuery && (
-        <section className="mb-12">
-          <h2 className="mb-4 font-serif text-2xl font-medium text-charcoal">Collections</h2>
-          <div className="flex gap-4 overflow-x-auto pb-2">
-            {demoCollections.map((collection) => (
-              <button
-                key={collection.id}
-                onClick={() => setActiveTag(activeTag === collection.id ? null : collection.id)}
-                className={cn(
-                  "flex-shrink-0 rounded-2xl border px-6 py-4 text-left transition-all",
-                  activeTag === collection.id
-                    ? "border-sage bg-sage/10"
-                    : "border-warm-gray/60 bg-ivory hover:border-sage/50"
-                )}
-              >
-                <p className="font-serif text-lg font-medium">{collection.name}</p>
-                <p className="text-sm text-charcoal-muted">
-                  {collection.recipeCount} recipes
-                </p>
-              </button>
-            ))}
-          </div>
-        </section>
+        <CollectionsSection
+          activeCollectionId={activeCollectionId}
+          onSelectCollection={setActiveCollectionId}
+        />
       )}
 
       {/* Category filters */}
@@ -110,20 +97,24 @@ function CookbookContent() {
           <p className="font-serif text-2xl text-charcoal-muted">No recipes found</p>
           <p className="mt-2 text-charcoal-muted">
             {usingDatabase
-              ? "Import your first recipe to start building your family cookbook"
+              ? activeCollectionId
+                ? "No recipes in this collection yet. Edit a recipe to add it here."
+                : "Import your first recipe to start building your family cookbook"
               : "Try a different search or import new recipes"}
           </p>
         </motion.div>
       )}
 
       {/* Quick stats */}
-      {!searchQuery && (
-        <div className="mt-16 grid grid-cols-2 gap-6 lg:grid-cols-4">
+      {!searchQuery && allRecipes.length > 0 && (
+        <div className="mt-16 grid grid-cols-2 gap-6 lg:grid-cols-3">
           {[
             { label: "Recipes", value: String(allRecipes.length) },
-            { label: "Family Members", value: "4" },
-            { label: "Stories", value: "4" },
-            { label: "Collections", value: "6" },
+            { label: "Collections", value: String(collections.length) },
+            {
+              label: "Categories",
+              value: String(new Set(allRecipes.map((r) => r.category)).size),
+            },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl bg-ivory p-6 text-center shadow-[var(--shadow-soft)]">
               <p className="font-serif text-3xl font-medium text-terracotta">{stat.value}</p>

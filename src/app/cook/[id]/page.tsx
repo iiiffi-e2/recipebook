@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -13,8 +13,10 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimerButton } from "@/components/cooking-timer";
+import { ServingsAdjuster } from "@/components/servings-adjuster";
 import { useRecipe } from "@/lib/recipes";
 import { useAppStore } from "@/lib/store";
+import { scaleIngredients } from "@/lib/scale-ingredients";
 
 export default function CookingModePage({
   params,
@@ -26,6 +28,13 @@ export default function CookingModePage({
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [showIngredients, setShowIngredients] = useState(false);
+  const [targetServings, setTargetServings] = useState<number | null>(null);
+
+  const servings = targetServings ?? recipe?.servings ?? 4;
+  const scaledIngredients = useMemo(() => {
+    if (!recipe) return [];
+    return scaleIngredients(recipe.ingredients, recipe.servings, servings);
+  }, [recipe, servings]);
 
   if (loading) {
     return (
@@ -150,12 +159,20 @@ export default function CookingModePage({
           >
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-serif text-2xl font-medium">Ingredients</h3>
-              <Button variant="ghost" size="icon" onClick={() => setShowIngredients(false)}>
-                <X className="h-5 w-5" />
-              </Button>
+              <div className="flex items-center gap-4">
+                <ServingsAdjuster
+                  servings={servings}
+                  originalServings={recipe.servings}
+                  onChange={setTargetServings}
+                  variant="inline"
+                />
+                <Button variant="ghost" size="icon" onClick={() => setShowIngredients(false)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
             </div>
             <ul className="space-y-3">
-              {recipe.ingredients.map((ingredient) => {
+              {scaledIngredients.map((ingredient) => {
                 const isChecked = checked.includes(ingredient.id);
                 return (
                   <li

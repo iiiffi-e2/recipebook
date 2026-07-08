@@ -13,6 +13,7 @@ import {
   DEFAULT_RECIPE_HERO,
   RECIPE_UPLOADS_BUCKET,
 } from "@/lib/supabase/config";
+import { fetchRecipeCollectionMap, setRecipeCollections } from "@/lib/supabase/collections";
 
 type DbIngredient = {
   id: string;
@@ -119,7 +120,11 @@ function resolveStorageUrl(supabase: SupabaseClient, path?: string | null): stri
   return data.publicUrl;
 }
 
-function mapDbRecipeToApp(supabase: SupabaseClient, row: DbRecipe): Recipe {
+function mapDbRecipeToApp(
+  supabase: SupabaseClient,
+  row: DbRecipe,
+  collectionIds: string[] = []
+): Recipe {
   const ingredients: Ingredient[] = (row.ingredients ?? [])
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     .map((item) => ({
@@ -188,7 +193,7 @@ function mapDbRecipeToApp(supabase: SupabaseClient, row: DbRecipe): Recipe {
     cookingHistory: [],
     versions: [],
     timeline,
-    collections: row.tags?.includes("imported") ? ["imported"] : [],
+    collections: collectionIds,
     isFavorite: row.is_favorite ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -207,22 +212,28 @@ export async function fetchFamilyRecipes(
   supabase: SupabaseClient,
   familyId: string
 ): Promise<Recipe[]> {
-  const { data, error } = await supabase
-    .from("recipes")
-    .select(recipeSelect)
-    .eq("family_id", familyId)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, collectionMap] = await Promise.all([
+    supabase
+      .from("recipes")
+      .select(recipeSelect)
+      .eq("family_id", familyId)
+      .order("created_at", { ascending: false }),
+    fetchRecipeCollectionMap(supabase, familyId),
+  ]);
 
   if (error) {
     throw error;
   }
 
-  return (data as DbRecipe[]).map((row) => mapDbRecipeToApp(supabase, row));
+  return (data as DbRecipe[]).map((row) =>
+    mapDbRecipeToApp(supabase, row, collectionMap.get(row.id) ?? [])
+  );
 }
 
 export async function fetchRecipeById(
   supabase: SupabaseClient,
-  recipeId: string
+  recipeId: string,
+  familyId?: string
 ): Promise<Recipe | null> {
   const { data, error } = await supabase
     .from("recipes")
@@ -238,7 +249,15 @@ export async function fetchRecipeById(
     return null;
   }
 
-  return mapDbRecipeToApp(supabase, data as DbRecipe);
+  const row = data as DbRecipe;
+  let collectionIds: string[] = [];
+
+  if (familyId) {
+    const collectionMap = await fetchRecipeCollectionMap(supabase, familyId);
+    collectionIds = collectionMap.get(recipeId) ?? [];
+  }
+
+  return mapDbRecipeToApp(supabase, row, collectionIds);
 }
 
 function inferOriginalType(fileType?: string): RecipeOriginal["type"] {
@@ -379,7 +398,7 @@ export async function saveRecipe(
     recipe_id: recipeId,
   });
 
-  const saved = await fetchRecipeById(supabase, recipeId);
+  const saved = await fetchRecipeById(supabase, recipeId, familyId);
   if (!saved) {
     throw new Error("Recipe saved but could not be loaded");
   }
@@ -500,4 +519,95 @@ export async function updateRecipeHeroImage(
   const heroImage = resolveStorageUrl(supabase, storagePath) ?? DEFAULT_RECIPE_HERO;
 
   return { heroImage, storagePath };
+}
+
+export type UpdateRecipeInput = SaveRecipeInput & {
+  collectionIds?: string[];
+};
+
+export async function updateRecipe(
+  supabase: SupabaseClient,
+  params: {
+    familyId: string;
+    userId: string;
+    recipeId: string;
+    recipe: UpdateRecipeInput;
+  }
+): Promise<Recipe> {
+  const { familyId, userId, recipeId, recipe } = params;
+
+  const { error: recipeError } = await supabase
+    .from("recipes")
+    .update({
+      title: recipe.title,
+      description: recipe.description ?? null,
+      prep_time: recipe.prepTime ?? 0,
+      cook_time: recipe.cookTime ?? 0,
+      servings: recipe.servings ?? 4,
+      difficulty: recipe.difficulty ?? "medium",
+      cuisine: recipe.cuisine ?? null,
+      category: recipe.category ?? "Imported",
+      tags: recipe.tags ?? [],
+      meal_types: recipe.mealTypes ?? ["dinner"],
+      cooking_method: recipe.cookingMethod ?? null,
+      nutrition: recipe.nutrition ?? null,
+      source: recipe.source ?? { type: "other" },
+    })
+    .eq("id", recipeId)
+    .eq("family_id", familyId);
+
+  if (recipeError) throw recipeError;
+
+  await supabase.from("ingredients").delete().eq("recipe_id", recipeId);
+  await supabase.from("instructions").delete().eq("recipe_id", recipeId);
+
+  if (recipe.ingredients?.length) {
+    const { error } = await supabase.from("ingredients").insert(
+      recipe.ingredients.map((ingredient, index) => ({
+        recipe_id: recipeId,
+        amount: ingredient.amount ?? "",
+        unit: ingredient.unit ?? "",
+        name: ingredient.name ?? "Ingredient",
+        notes: ingredient.notes ?? null,
+        sort_order: index,
+      }))
+    );
+    if (error) throw error;
+  }
+
+  if (recipe.instructions?.length) {
+    const { error } = await supabase.from("instructions").insert(
+      recipe.instructions.map((instruction, index) => ({
+        recipe_id: recipeId,
+        step: instruction.step ?? index + 1,
+        text: instruction.text ?? "",
+        timer_minutes: instruction.timerMinutes ?? null,
+        sort_order: index,
+      }))
+    );
+    if (error) throw error;
+  }
+
+  if (recipe.collectionIds !== undefined) {
+    await setRecipeCollections(supabase, {
+      recipeId,
+      collectionIds: recipe.collectionIds,
+      familyId,
+    });
+  }
+
+  await supabase.from("timeline_events").insert({
+    recipe_id: recipeId,
+    type: "edited",
+    title: "Recipe updated",
+    description: "Ingredients, instructions, or details were changed",
+    author_id: userId,
+  });
+
+  const updated = await fetchRecipeById(supabase, recipeId, familyId);
+  if (!updated) {
+    throw new Error("Recipe updated but could not be loaded");
+  }
+
+  return updated;
 }
