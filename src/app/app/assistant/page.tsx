@@ -7,45 +7,26 @@ import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAppStore } from "@/lib/store";
+import { useFamilyInfo } from "@/components/providers/recipes-provider";
 import type { ChatMessage } from "@/lib/types";
 
 const suggestions = [
   "What can I make with chicken?",
-  "Plan Thanksgiving dinner",
-  "Show Grandma's desserts",
+  "Plan a holiday dinner",
+  "Show dessert recipes",
   "What freezes well?",
-  "Make Dad's chili vegan",
+  "Suggest a vegetarian option",
   "Recipes under 30 minutes",
 ];
 
-const demoResponses: Record<string, string> = {
-  chicken:
-    "Based on your family cookbook, you could make Mom's Sunday Pot Roast (though it uses beef, it's a Sunday classic!) or try adapting Dad's Championship Chili. For chicken specifically, I'd suggest importing Grandma's chicken pot pie recipe — would you like me to help with that?",
-  thanksgiving:
-    "For Thanksgiving, your cookbook has these traditions:\n\n• Grandma Rose's Apple Pie (dessert)\n• Dad's Championship Chili (for the night before)\n• Mom's Sunday Pot Roast (main course alternative)\n\nI'd recommend starting with the apple pie — it's been made every Thanksgiving since 1962!",
-  grandma:
-    "Grandma Rose's recipes in your cookbook:\n\n• **Apple Pie** — The Thanksgiving centerpiece, with her handwritten card preserved\n• Her voice recording explaining the crust technique is attached\n\nShe contributed 15 recipes total to the family collection.",
-  freez:
-    "These family recipes freeze well:\n\n• **Dad's Championship Chili** — Actually improves after freezing! Makes a big batch perfect for meal prep.\n• **Nonna's Sunday Gravy** — Freeze in portions for easy pasta nights.\n\nBoth are tagged 'freezes-well' in your cookbook.",
-  vegan:
-    "To make Dad's Championship Chili vegan:\n\n• Replace ground beef and pork with 3 lbs plant-based crumbles\n• Add an extra can of beans for texture\n• The chipotle peppers and chocolate remain — they're naturally vegan!\n• Consider adding smoked paprika for depth\n\nWant me to create a saved variation?",
-  "30 min":
-    "Quick family recipes under 30 minutes:\n\n• **Fluffy Buttermilk Pancakes** — 25 min total, perfect for Saturday mornings\n• **Aunt Lisa's Lemon Bars** — 60 min but only 15 min active prep\n\nFor true weeknight speed, your 'Quick Meals' collection has 22 recipes.",
-};
-
-function getResponse(query: string): string {
-  const q = query.toLowerCase();
-  for (const [key, response] of Object.entries(demoResponses)) {
-    if (q.includes(key)) return response;
-  }
-  return `I'd love to help with that! Based on your Mitchell Family cookbook with 6 preserved recipes, I can search ingredients, scale portions, suggest pairings, or help plan meals. Try asking about specific recipes, ingredients, or occasions like "Plan Thanksgiving" or "What did Mom make most often?"`;
-}
-
 export default function AssistantPage() {
   const { chatMessages, addChatMessage } = useAppStore();
+  const { family } = useFamilyInfo();
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const familyLabel = family?.name ? `${family.name} family` : "family";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -64,11 +45,16 @@ export default function AssistantPage() {
     setInput("");
     setIsTyping(true);
 
+    const history = chatMessages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
     try {
       const response = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text.trim() }),
+        body: JSON.stringify({ message: text.trim(), history }),
       });
 
       let content: string;
@@ -76,10 +62,9 @@ export default function AssistantPage() {
         const data = await response.json();
         content = data.message;
       } else {
-        content = getResponse(text);
+        content =
+          "Sorry, I couldn't reach the cooking assistant right now. Please try again in a moment.";
       }
-
-      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       addChatMessage({
         id: `msg-${crypto.randomUUID()}-assistant`,
@@ -91,7 +76,8 @@ export default function AssistantPage() {
       addChatMessage({
         id: `msg-${crypto.randomUUID()}-assistant`,
         role: "assistant",
-        content: getResponse(text),
+        content:
+          "Sorry, something went wrong. Please check your connection and try again.",
         timestamp: new Date().toISOString(),
       });
     } finally {
@@ -103,7 +89,7 @@ export default function AssistantPage() {
     <>
       <Header
         title="Cooking Assistant"
-        subtitle="Ask anything about your family's recipes — I know them by heart"
+        subtitle={`Ask anything about your ${familyLabel}'s recipes — I know them by heart`}
       />
 
       <div className="flex h-[calc(100vh-16rem)] flex-col rounded-2xl bg-ivory shadow-[var(--shadow-soft)]">
