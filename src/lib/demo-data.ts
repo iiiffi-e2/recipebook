@@ -164,7 +164,7 @@ export const demoRecipes: Recipe[] = [
     ],
     memories: [
       {
-        id: "mem-1",
+        id: "mem-3",
         type: "story",
         title: "The Cook-Off Victory",
         content:
@@ -331,7 +331,7 @@ export const demoRecipes: Recipe[] = [
     originals: [],
     memories: [
       {
-        id: "mem-1",
+        id: "mem-4",
         type: "story",
         title: "Sunday in Brooklyn",
         content: "Nonna would start the gravy at 6 AM. By noon, the whole apartment building could smell it.",
