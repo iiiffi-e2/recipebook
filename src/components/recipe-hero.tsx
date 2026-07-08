@@ -7,7 +7,6 @@ import {
   Upload,
   Sparkles,
   Loader2,
-  ImageIcon,
   RotateCcw,
   Camera,
 } from "lucide-react";
@@ -291,13 +290,6 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
 
       {error && (
         <p className={cn("mt-3 text-sm text-terracotta")}>{error}</p>
-      )}
-
-      {!isCustom && !showControls && (
-        <p className="mt-3 hidden text-sm text-charcoal-muted md:block">
-          <ImageIcon className="mr-1 inline h-4 w-4" />
-          Hover to upload your own photo or generate one with AI
-        </p>
       )}
     </div>
   );
