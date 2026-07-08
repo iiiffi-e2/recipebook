@@ -104,6 +104,7 @@ export default function PlannerPage() {
                                 alt={recipe.title}
                                 fill
                                 className="object-cover"
+                                sizes="150px"
                               />
                             </div>
                             <p className="text-xs font-medium line-clamp-2">{recipe.title}</p>
@@ -129,7 +130,13 @@ export default function PlannerPage() {
               className="flex items-center gap-4 rounded-2xl bg-ivory p-4 shadow-[var(--shadow-soft)]"
             >
               <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl">
-                <Image src={recipe.heroImage} alt={recipe.title} fill className="object-cover" />
+                <Image
+                  src={recipe.heroImage}
+                  alt={recipe.title}
+                  fill
+                  className="object-cover"
+                  sizes="64px"
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium truncate">{recipe.title}</p>

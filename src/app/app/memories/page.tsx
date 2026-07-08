@@ -49,6 +49,7 @@ export default function MemoriesPage() {
                       alt={memory.recipe.title}
                       fill
                       className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 33vw"
                     />
                   </div>
                   <div className="p-8 md:col-span-2">

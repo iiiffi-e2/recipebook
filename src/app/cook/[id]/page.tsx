@@ -183,7 +183,13 @@ export default function CookingModePage({
 
       {/* Hero image background */}
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-10">
-        <Image src={recipe.heroImage} alt="" fill className="object-cover" />
+        <Image
+          src={recipe.heroImage}
+          alt=""
+          fill
+          className="object-cover"
+          sizes="100vw"
+        />
       </div>
     </div>
   );

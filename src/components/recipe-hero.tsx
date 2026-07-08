@@ -38,7 +38,18 @@ function HeroImage({ src, alt }: { src: string; alt: string }) {
     );
   }
 
-  return <Image src={src} alt={alt} fill className="object-cover" priority unoptimized={isLocal || src.startsWith("data:")} />;
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className="object-cover"
+      sizes="(max-width: 1024px) 100vw, 1024px"
+      priority
+      loading="eager"
+      unoptimized={isLocal || src.startsWith("data:")}
+    />
+  );
 }
 
 export function RecipeHero({ recipe, children }: RecipeHeroProps) {

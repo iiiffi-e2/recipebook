@@ -248,6 +248,7 @@ export default function RecipePage({
                       alt="Original recipe"
                       fill
                       className="object-cover"
+                      sizes="(max-width: 640px) 100vw, 50vw"
                     />
                   </div>
                   <div className="p-4">

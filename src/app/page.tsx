@@ -119,7 +119,9 @@ export default function LandingPage() {
                   alt="Grandma's apple pie"
                   fill
                   className="object-cover"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
                   priority
+                  loading="eager"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-8">
