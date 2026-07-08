@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore, useRecipeHero, type HeroImageSource } from "@/lib/store";
 import type { Recipe } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -45,10 +46,47 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { heroImage, heroSource, isCustom } = useRecipeHero(recipe.id, recipe.heroImage);
   const { setHeroImage, resetHeroImage } = useAppStore();
+  const { usingDatabase, refreshRecipes } = useRecipesContext();
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showControls, setShowControls] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const persistHeroImage = async (
+    recipeId: string,
+    options: { file?: File; imageData?: string; source: HeroImageSource }
+  ) => {
+    if (!usingDatabase || options.source === "default") {
+      return null;
+    }
+
+    const response = options.file
+      ? await fetch(`/api/recipes/${recipeId}/hero`, {
+          method: "POST",
+          body: (() => {
+            const formData = new FormData();
+            formData.append("file", options.file);
+            formData.append("source", options.source);
+            return formData;
+          })(),
+        })
+      : await fetch(`/api/recipes/${recipeId}/hero`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            imageData: options.imageData,
+            source: options.source,
+          }),
+        });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error || "Failed to save hero image");
+    }
+
+    await refreshRecipes();
+    return data.heroImage as string;
+  };
 
   const handleUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -59,12 +97,18 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
     setIsUploading(true);
     setError(null);
 
+    const objectUrl = URL.createObjectURL(file);
+    setHeroImage(recipe.id, objectUrl, "upload");
+
     try {
-      const objectUrl = URL.createObjectURL(file);
-      setHeroImage(recipe.id, objectUrl, "upload");
+      const savedUrl = await persistHeroImage(recipe.id, { file, source: "upload" });
+      if (savedUrl) {
+        setHeroImage(recipe.id, savedUrl, "upload");
+      }
     } catch {
-      setError("Failed to upload image. Please try again.");
+      setError("Image uploaded locally but could not be saved. Check your Supabase storage setup.");
     } finally {
+      URL.revokeObjectURL(objectUrl);
       setIsUploading(false);
     }
   };
@@ -97,13 +141,31 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
       }
 
       const data = await response.json();
-      setHeroImage(recipe.id, data.imageUrl, data.source === "fallback" ? "default" : "generated");
+      const source: HeroImageSource =
+        data.source === "fallback" ? "default" : "generated";
+
+      setHeroImage(recipe.id, data.imageUrl, source);
 
       if (data.source === "fallback" && data.message) {
         setError(data.message);
+        return;
       }
-    } catch {
-      setError("Could not generate image. Please try again.");
+
+      if (source === "generated") {
+        const savedUrl = await persistHeroImage(recipe.id, {
+          imageData: data.imageUrl,
+          source: "generated",
+        });
+        if (savedUrl) {
+          setHeroImage(recipe.id, savedUrl, "generated");
+        }
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message !== "Generation failed"
+          ? err.message
+          : "Could not generate image. Please try again."
+      );
     } finally {
       setIsGenerating(false);
     }

@@ -17,8 +17,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore } from "@/lib/store";
 import { normalizeExtractedRecipe } from "@/lib/import-recipe";
+import { recipeToSaveInput } from "@/lib/supabase/recipes";
 import type { ImportItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +68,7 @@ async function ingestFile(file: File) {
 export function ImportDropzone() {
   const { importQueue, addToImportQueue, updateImportItem, addImportedRecipe } =
     useAppStore();
+  const { usingDatabase, refreshRecipes } = useRecipesContext();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const processFiles = useCallback(
@@ -103,12 +106,36 @@ export function ImportDropzone() {
             fileName: item.fileName,
           });
 
-          addImportedRecipe(recipe);
-          updateImportItem(item.id, {
-            status: "completed",
-            recipeId: recipe.id,
-            recipeTitle: recipe.title,
-          });
+          if (usingDatabase) {
+            const formData = new FormData();
+            formData.append("recipe", JSON.stringify(recipeToSaveInput(recipe)));
+            formData.append("file", file);
+            formData.append("fileName", item.fileName);
+
+            const persistResponse = await fetch("/api/recipes", {
+              method: "POST",
+              body: formData,
+            });
+            const persistData = await persistResponse.json().catch(() => null);
+
+            if (!persistResponse.ok) {
+              throw new Error(persistData?.error || "Failed to save recipe to database");
+            }
+
+            await refreshRecipes();
+            updateImportItem(item.id, {
+              status: "completed",
+              recipeId: persistData.recipe.id,
+              recipeTitle: persistData.recipe.title,
+            });
+          } else {
+            addImportedRecipe(recipe);
+            updateImportItem(item.id, {
+              status: "completed",
+              recipeId: recipe.id,
+              recipeTitle: recipe.title,
+            });
+          }
         } catch (error) {
           updateImportItem(item.id, {
             status: "failed",
@@ -126,7 +153,7 @@ export function ImportDropzone() {
 
       setIsProcessing(false);
     },
-    [addImportedRecipe, addToImportQueue, updateImportItem]
+    [addImportedRecipe, addToImportQueue, refreshRecipes, updateImportItem, usingDatabase]
   );
 
   const onDrop = useCallback(

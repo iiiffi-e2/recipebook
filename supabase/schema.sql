@@ -218,24 +218,262 @@ CREATE TRIGGER families_updated_at
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- Row Level Security
-ALTER TABLE families ENABLE ROW LEVEL SECURITY;
-ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
+-- Helper: families the current user belongs to
+CREATE OR REPLACE FUNCTION public.user_family_ids()
+RETURNS SETOF UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT family_id
+  FROM family_members
+  WHERE user_id = auth.uid();
+$$;
 
--- Family members can read their family's data
-CREATE POLICY "Family members can view recipes"
-  ON recipes FOR SELECT
-  USING (
-    family_id IN (
-      SELECT family_id FROM family_members WHERE user_id = auth.uid()
+CREATE OR REPLACE FUNCTION public.user_editor_family_ids()
+RETURNS SETOF UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT family_id
+  FROM family_members
+  WHERE user_id = auth.uid()
+    AND role IN ('owner', 'editor');
+$$;
+
+CREATE OR REPLACE FUNCTION public.user_owner_family_ids()
+RETURNS SETOF UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT family_id
+  FROM family_members
+  WHERE user_id = auth.uid()
+    AND role = 'owner';
+$$;
+
+CREATE OR REPLACE FUNCTION public.recipe_family_id(recipe_uuid UUID)
+RETURNS UUID
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT family_id
+  FROM recipes
+  WHERE id = recipe_uuid;
+$$;
+
+ALTER TABLE families ENABLE ROW LEVEL SECURITY;
+ALTER TABLE family_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ingredients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE instructions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE recipe_originals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE memories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE collection_recipes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cooking_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE timeline_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE imports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE meal_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE shopping_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
+
+-- Families
+CREATE POLICY "Members can view their families"
+  ON families FOR SELECT
+  USING (id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Authenticated users can create families"
+  ON families FOR INSERT
+  WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Owners can update their families"
+  ON families FOR UPDATE
+  USING (id IN (SELECT public.user_owner_family_ids()))
+  WITH CHECK (id IN (SELECT public.user_owner_family_ids()));
+
+-- Family members
+CREATE POLICY "Members can view family membership"
+  ON family_members FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Owners can add family members"
+  ON family_members FOR INSERT
+  WITH CHECK (family_id IN (SELECT public.user_owner_family_ids()));
+
+CREATE POLICY "Creators can add themselves as first owner"
+  ON family_members FOR INSERT
+  WITH CHECK (
+    user_id = auth.uid()
+    AND role = 'owner'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM family_members existing
+      WHERE existing.family_id = family_members.family_id
     )
   );
 
+CREATE POLICY "Owners can update family members"
+  ON family_members FOR UPDATE
+  USING (family_id IN (SELECT public.user_owner_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_owner_family_ids()));
+
+CREATE POLICY "Owners can remove family members"
+  ON family_members FOR DELETE
+  USING (family_id IN (SELECT public.user_owner_family_ids()));
+
+-- Recipes
+CREATE POLICY "Family members can view recipes"
+  ON recipes FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
 CREATE POLICY "Editors can insert recipes"
   ON recipes FOR INSERT
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Editors can update recipes"
+  ON recipes FOR UPDATE
+  USING (family_id IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Editors can delete recipes"
+  ON recipes FOR DELETE
+  USING (family_id IN (SELECT public.user_editor_family_ids()));
+
+-- Recipe child tables
+CREATE POLICY "Family members can view ingredients"
+  ON ingredients FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage ingredients"
+  ON ingredients FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view instructions"
+  ON instructions FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage instructions"
+  ON instructions FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view recipe originals"
+  ON recipe_originals FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage recipe originals"
+  ON recipe_originals FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view memories"
+  ON memories FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage memories"
+  ON memories FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view cooking history"
+  ON cooking_history FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Members can manage cooking history"
+  ON cooking_history FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()))
   WITH CHECK (
-    family_id IN (
-      SELECT family_id FROM family_members
-      WHERE user_id = auth.uid() AND role IN ('owner', 'editor')
+    public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids())
+    AND cooked_by = auth.uid()
+  );
+
+CREATE POLICY "Family members can view timeline events"
+  ON timeline_events FOR SELECT
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage timeline events"
+  ON timeline_events FOR ALL
+  USING (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (public.recipe_family_id(recipe_id) IN (SELECT public.user_editor_family_ids()));
+
+-- Collections
+CREATE POLICY "Family members can view collections"
+  ON collections FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage collections"
+  ON collections FOR ALL
+  USING (family_id IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view collection recipes"
+  ON collection_recipes FOR SELECT
+  USING (
+    collection_id IN (
+      SELECT id FROM collections
+      WHERE family_id IN (SELECT public.user_family_ids())
     )
+  );
+
+CREATE POLICY "Editors can manage collection recipes"
+  ON collection_recipes FOR ALL
+  USING (
+    collection_id IN (
+      SELECT id FROM collections
+      WHERE family_id IN (SELECT public.user_editor_family_ids())
+    )
+  )
+  WITH CHECK (
+    collection_id IN (
+      SELECT id FROM collections
+      WHERE family_id IN (SELECT public.user_editor_family_ids())
+    )
+  );
+
+-- Family-scoped tables
+CREATE POLICY "Family members can view imports"
+  ON imports FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage imports"
+  ON imports FOR ALL
+  USING (family_id IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view meal plans"
+  ON meal_plans FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage meal plans"
+  ON meal_plans FOR ALL
+  USING (family_id IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view shopping items"
+  ON shopping_items FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Editors can manage shopping items"
+  ON shopping_items FOR ALL
+  USING (family_id IN (SELECT public.user_editor_family_ids()))
+  WITH CHECK (family_id IN (SELECT public.user_editor_family_ids()));
+
+CREATE POLICY "Family members can view activity"
+  ON activity FOR SELECT
+  USING (family_id IN (SELECT public.user_family_ids()));
+
+CREATE POLICY "Members can insert activity"
+  ON activity FOR INSERT
+  WITH CHECK (
+    family_id IN (SELECT public.user_family_ids())
+    AND user_id = auth.uid()
   );

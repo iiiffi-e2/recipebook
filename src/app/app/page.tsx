@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { RecipeCard } from "@/components/recipe-card";
 import { demoCollections, categoryFilters } from "@/lib/demo-data";
-import { useAllRecipes, useSearchRecipes } from "@/lib/recipes";
+import { useAllRecipes, useSearchRecipes, useRecipesContext } from "@/lib/recipes";
 import { cn } from "@/lib/utils";
 
 function CookbookContent() {
@@ -16,6 +16,7 @@ function CookbookContent() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const allRecipes = useAllRecipes();
   const searchedRecipes = useSearchRecipes(searchQuery);
+  const { loading, usingDatabase } = useRecipesContext();
 
   const filteredRecipes = useMemo(() => {
     let recipes = searchQuery ? searchedRecipes : allRecipes;
@@ -90,7 +91,11 @@ function CookbookContent() {
       </div>
 
       {/* Recipe grid */}
-      {filteredRecipes.length > 0 ? (
+      {loading ? (
+        <div className="rounded-2xl bg-ivory p-16 text-center">
+          <p className="font-serif text-2xl text-charcoal-muted">Loading your cookbook...</p>
+        </div>
+      ) : filteredRecipes.length > 0 ? (
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {filteredRecipes.map((recipe, i) => (
             <RecipeCard key={recipe.id} recipe={recipe} index={i} />
@@ -103,7 +108,11 @@ function CookbookContent() {
           className="rounded-2xl bg-ivory p-16 text-center"
         >
           <p className="font-serif text-2xl text-charcoal-muted">No recipes found</p>
-          <p className="mt-2 text-charcoal-muted">Try a different search or import new recipes</p>
+          <p className="mt-2 text-charcoal-muted">
+            {usingDatabase
+              ? "Import your first recipe to start building your family cookbook"
+              : "Try a different search or import new recipes"}
+          </p>
         </motion.div>
       )}
 

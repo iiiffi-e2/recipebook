@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BookOpen,
   Upload,
@@ -13,8 +13,12 @@ import {
   Home,
   ChefHat,
   Sparkles,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { useFamilyInfo, useAllRecipes } from "@/lib/recipes";
 
 const navigation = [
   { name: "Cookbook", href: "/app", icon: BookOpen },
@@ -28,6 +32,17 @@ const navigation = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const { family } = useFamilyInfo();
+  const recipes = useAllRecipes();
+  const configured = isSupabaseConfigured();
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-64 flex-col border-r border-warm-gray/60 bg-ivory/80 backdrop-blur-sm">
@@ -38,7 +53,9 @@ export function Sidebar() {
           </div>
           <div>
             <span className="font-serif text-xl font-medium text-charcoal">Heirloom</span>
-            <p className="text-[10px] uppercase tracking-widest text-charcoal-muted">Mitchell Family</p>
+            <p className="text-[10px] uppercase tracking-widest text-charcoal-muted">
+              {family?.name ?? "Family Cookbook"}
+            </p>
           </div>
         </Link>
       </div>
@@ -74,13 +91,25 @@ export function Sidebar() {
           <Home className="h-5 w-5" />
           Back to Home
         </Link>
+        {configured && (
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="mt-2 flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm text-charcoal-muted transition-colors hover:bg-cream hover:text-charcoal"
+          >
+            <LogOut className="h-5 w-5" />
+            Sign out
+          </button>
+        )}
         <div className="mt-3 rounded-xl bg-sage/10 p-4">
           <div className="flex items-center gap-2 text-sage">
             <Sparkles className="h-4 w-4" />
-            <span className="text-xs font-medium">AI-Powered</span>
+            <span className="text-xs font-medium">
+              {configured ? "Supabase Connected" : "Demo Mode"}
+            </span>
           </div>
           <p className="mt-1 text-xs text-charcoal-muted">
-            6 recipes preserved · 4 family members
+            {recipes.length} recipes in your cookbook
           </p>
         </div>
       </div>

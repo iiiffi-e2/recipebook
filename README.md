@@ -35,7 +35,20 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to explore the demo cookbook.
+Open [http://localhost:3000](http://localhost:3000).
+
+## Supabase Setup
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run `supabase/schema.sql` in the SQL Editor
+3. Run `supabase/storage.sql` in the SQL Editor
+4. Copy your project URL and anon key into `.env.local`
+5. In **Authentication → URL Configuration**, set:
+   - Site URL: `http://localhost:3000`
+   - Redirect URLs: `http://localhost:3000/**`
+6. Create an account at `/signup`, then sign in at `/login`
+
+Once signed in, the app loads recipes from your Supabase database. Imports are saved to PostgreSQL and uploaded files go to the `recipe-uploads` storage bucket.
 
 ## Environment Variables
 
@@ -47,12 +60,14 @@ Open [http://localhost:3000](http://localhost:3000) to explore the demo cookbook
 
 ## Database Setup
 
-Run the SQL schema in your Supabase SQL editor:
+Run these files in your Supabase SQL editor:
 
 ```bash
-# Schema located at:
 supabase/schema.sql
+supabase/storage.sql
 ```
+
+If you already seeded a test user and family manually, sign in with that account instead of creating a new one.
 
 ## Project Structure
 
