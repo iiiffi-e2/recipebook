@@ -38,7 +38,7 @@ function HeroImage({ src, alt }: { src: string; alt: string }) {
     );
   }
 
-  return <Image src={src} alt={alt} fill className="object-cover" priority unoptimized={src.includes("oaidalleapiprodscus")} />;
+  return <Image src={src} alt={alt} fill className="object-cover" priority unoptimized={isLocal || src.startsWith("data:")} />;
 }
 
 export function RecipeHero({ recipe, children }: RecipeHeroProps) {
@@ -82,7 +82,13 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
           description: recipe.description,
           category: recipe.category,
           cuisine: recipe.cuisine,
-          ingredients: recipe.ingredients.map((i) => i.name),
+          tags: recipe.tags,
+          cookingMethod: recipe.cookingMethod,
+          servings: recipe.servings,
+          ingredients: recipe.ingredients.map((i) =>
+            [i.amount, i.unit, i.name, i.notes].filter(Boolean).join(" ").trim()
+          ),
+          instructions: recipe.instructions.map((i) => i.text),
         }),
       });
 
@@ -91,7 +97,11 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
       }
 
       const data = await response.json();
-      setHeroImage(recipe.id, data.imageUrl, "generated");
+      setHeroImage(recipe.id, data.imageUrl, data.source === "fallback" ? "default" : "generated");
+
+      if (data.source === "fallback" && data.message) {
+        setError(data.message);
+      }
     } catch {
       setError("Could not generate image. Please try again.");
     } finally {

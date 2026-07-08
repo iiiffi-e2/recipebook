@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ImportItem, ChatMessage, ShoppingItem, MealPlanEntry } from "./types";
+import type { ImportItem, ChatMessage, ShoppingItem, MealPlanEntry, Recipe } from "./types";
 import { demoShoppingList, demoMealPlan } from "./demo-data";
 
 export type HeroImageSource = "default" | "upload" | "generated";
@@ -14,6 +14,9 @@ interface AppState {
   addToImportQueue: (items: ImportItem[]) => void;
   updateImportItem: (id: string, updates: Partial<ImportItem>) => void;
   clearImportQueue: () => void;
+
+  importedRecipes: Recipe[];
+  addImportedRecipe: (recipe: Recipe) => void;
 
   chatMessages: ChatMessage[];
   addChatMessage: (message: ChatMessage) => void;
@@ -51,6 +54,15 @@ export const useAppStore = create<AppState>((set) => ({
       ),
     })),
   clearImportQueue: () => set({ importQueue: [] }),
+
+  importedRecipes: [],
+  addImportedRecipe: (recipe) =>
+    set((state) => ({
+      importedRecipes: [
+        recipe,
+        ...state.importedRecipes.filter((existing) => existing.id !== recipe.id),
+      ],
+    })),
 
   chatMessages: [],
   addChatMessage: (message) =>

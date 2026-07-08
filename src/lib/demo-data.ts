@@ -459,15 +459,15 @@ export const tagFilters = [
   "slow-cooker",
 ];
 
-export function getRecipeById(id: string): Recipe | undefined {
-  return demoRecipes.find((r) => r.id === id);
+export function getRecipeById(id: string, recipes: Recipe[] = demoRecipes): Recipe | undefined {
+  return recipes.find((r) => r.id === id);
 }
 
-export function searchRecipes(query: string): Recipe[] {
+export function searchRecipes(query: string, recipes: Recipe[] = demoRecipes): Recipe[] {
   const q = query.toLowerCase().trim();
-  if (!q) return demoRecipes;
+  if (!q) return recipes;
 
-  return demoRecipes.filter((recipe) => {
+  return recipes.filter((recipe) => {
     const searchable = [
       recipe.title,
       recipe.description,

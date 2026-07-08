@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecipeHero } from "@/components/recipe-hero";
-import { getRecipeById } from "@/lib/demo-data";
+import { useRecipe } from "@/lib/recipes";
 import { useAppStore } from "@/lib/store";
 import { formatDuration, formatDate } from "@/lib/utils";
 
@@ -33,7 +33,7 @@ export default function RecipePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const recipe = getRecipeById(id);
+  const recipe = useRecipe(id);
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [activeStep, setActiveStep] = useState(0);
 

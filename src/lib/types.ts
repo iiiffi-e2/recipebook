@@ -146,6 +146,7 @@ export interface ImportItem {
   previewUrl?: string;
   status: ImportStatus;
   recipeId?: string;
+  recipeTitle?: string;
   error?: string;
   uploadedAt: string;
 }

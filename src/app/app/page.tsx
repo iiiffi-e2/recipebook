@@ -5,7 +5,8 @@ import { useMemo, useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { RecipeCard } from "@/components/recipe-card";
-import { demoRecipes, demoCollections, categoryFilters, searchRecipes } from "@/lib/demo-data";
+import { demoCollections, categoryFilters } from "@/lib/demo-data";
+import { useAllRecipes, useSearchRecipes } from "@/lib/recipes";
 import { cn } from "@/lib/utils";
 
 function CookbookContent() {
@@ -13,9 +14,11 @@ function CookbookContent() {
   const searchQuery = searchParams.get("search") || "";
   const [activeCategory, setActiveCategory] = useState("All");
   const [activeTag, setActiveTag] = useState<string | null>(null);
+  const allRecipes = useAllRecipes();
+  const searchedRecipes = useSearchRecipes(searchQuery);
 
   const filteredRecipes = useMemo(() => {
-    let recipes = searchQuery ? searchRecipes(searchQuery) : demoRecipes;
+    let recipes = searchQuery ? searchedRecipes : allRecipes;
 
     if (activeCategory !== "All") {
       recipes = recipes.filter(
@@ -28,7 +31,7 @@ function CookbookContent() {
     }
 
     return recipes;
-  }, [searchQuery, activeCategory, activeTag]);
+  }, [searchQuery, activeCategory, activeTag, allRecipes, searchedRecipes]);
 
   return (
     <>
@@ -108,7 +111,7 @@ function CookbookContent() {
       {!searchQuery && (
         <div className="mt-16 grid grid-cols-2 gap-6 lg:grid-cols-4">
           {[
-            { label: "Recipes", value: "6" },
+            { label: "Recipes", value: String(allRecipes.length) },
             { label: "Family Members", value: "4" },
             { label: "Stories", value: "4" },
             { label: "Collections", value: "6" },

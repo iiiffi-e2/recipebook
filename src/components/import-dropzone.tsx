@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,9 +14,11 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
+  ArrowRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/lib/store";
+import { normalizeExtractedRecipe } from "@/lib/import-recipe";
 import type { ImportItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -27,8 +30,42 @@ const ACCEPTED_TYPES = {
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
 };
 
+const INGEST_TIMEOUT_MS = 120_000;
+
+async function ingestFile(file: File) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS);
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/ingest", {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+
+    const data = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      throw new Error(data?.error || "Import failed");
+    }
+
+    return data as {
+      success?: boolean;
+      recipeId?: string;
+      recipe?: Record<string, unknown>;
+      message?: string;
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export function ImportDropzone() {
-  const { importQueue, addToImportQueue, updateImportItem } = useAppStore();
+  const { importQueue, addToImportQueue, updateImportItem, addImportedRecipe } =
+    useAppStore();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const processFiles = useCallback(
@@ -49,43 +86,47 @@ export function ImportDropzone() {
       for (const item of newItems) {
         updateImportItem(item.id, { status: "processing" });
 
-        try {
-          const formData = new FormData();
-          const file = files.find((f) => f.name === item.fileName);
-          if (file) {
-            formData.append("file", file);
-          }
+        const file = files.find((candidate) => candidate.name === item.fileName);
+        if (!file) {
+          updateImportItem(item.id, {
+            status: "failed",
+            error: "Could not read uploaded file",
+          });
+          continue;
+        }
 
-          const response = await fetch("/api/ingest", {
-            method: "POST",
-            body: formData,
+        try {
+          const data = await ingestFile(file);
+          const recipeId = data.recipeId || `imported-${Date.now()}`;
+          const recipe = normalizeExtractedRecipe(data.recipe ?? {}, recipeId, {
+            previewUrl: item.previewUrl,
+            fileName: item.fileName,
           });
 
-          if (response.ok) {
-            const data = await response.json();
-            updateImportItem(item.id, {
-              status: "completed",
-              recipeId: data.recipeId,
-            });
-          } else {
-            updateImportItem(item.id, {
-              status: "completed",
-              recipeId: `demo-${item.id}`,
-            });
-          }
-        } catch {
+          addImportedRecipe(recipe);
           updateImportItem(item.id, {
             status: "completed",
-            recipeId: `demo-${item.id}`,
+            recipeId: recipe.id,
+            recipeTitle: recipe.title,
+          });
+        } catch (error) {
+          updateImportItem(item.id, {
+            status: "failed",
+            error:
+              error instanceof Error && error.name === "AbortError"
+                ? "Import timed out. Try a smaller image or paste the recipe text instead."
+                : error instanceof Error
+                  ? error.message
+                  : "Import failed",
           });
         }
 
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        await new Promise((resolve) => setTimeout(resolve, 400));
       }
 
       setIsProcessing(false);
     },
-    [addToImportQueue, updateImportItem]
+    [addImportedRecipe, addToImportQueue, updateImportItem]
   );
 
   const onDrop = useCallback(
@@ -124,6 +165,8 @@ export function ImportDropzone() {
     { icon: FolderOpen, label: "Bulk Folder Upload" },
   ];
 
+  const completedCount = importQueue.filter((item) => item.status === "completed").length;
+
   return (
     <div className="space-y-8">
       <div
@@ -151,7 +194,14 @@ export function ImportDropzone() {
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <Button type="button">Choose Files</Button>
-            <Button type="button" variant="outline" onClick={(e) => { e.stopPropagation(); handlePaste(); }}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePaste();
+              }}
+            >
               Paste Recipe
             </Button>
           </div>
@@ -178,18 +228,28 @@ export function ImportDropzone() {
             exit={{ opacity: 0, height: 0 }}
             className="rounded-2xl bg-ivory p-6 shadow-[var(--shadow-soft)]"
           >
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-serif text-xl font-medium">
                 Import Queue ({importQueue.length})
               </h3>
-              {isProcessing && (
-                <span className="flex items-center gap-2 text-sm text-sage">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Processing with AI...
-                </span>
-              )}
+              <div className="flex items-center gap-3">
+                {completedCount > 0 && !isProcessing && (
+                  <Link href="/app">
+                    <Button size="sm" variant="outline">
+                      View in Cookbook
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
+                {isProcessing && (
+                  <span className="flex items-center gap-2 text-sm text-sage">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processing with AI...
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="space-y-3 max-h-80 overflow-y-auto">
+            <div className="max-h-80 space-y-3 overflow-y-auto">
               {importQueue.map((item) => (
                 <div
                   key={item.id}
@@ -207,16 +267,31 @@ export function ImportDropzone() {
                       <FileText className="h-6 w-6 text-sage" />
                     </div>
                   )}
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-sm font-medium">{item.fileName}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {item.recipeTitle || item.fileName}
+                    </p>
                     <p className="text-xs text-charcoal-muted">
-                      {(item.fileSize / 1024).toFixed(1)} KB
+                      {item.status === "processing"
+                        ? "Extracting recipe with AI..."
+                        : item.status === "completed"
+                          ? "Added to your cookbook"
+                          : item.status === "failed"
+                            ? item.error || "Import failed"
+                            : `${(item.fileSize / 1024).toFixed(1)} KB`}
                     </p>
                   </div>
                   {item.status === "processing" && (
                     <Loader2 className="h-5 w-5 animate-spin text-sage" />
                   )}
-                  {item.status === "completed" && (
+                  {item.status === "completed" && item.recipeId && (
+                    <Link href={`/app/recipes/${item.recipeId}`}>
+                      <Button size="sm" variant="ghost">
+                        Open
+                      </Button>
+                    </Link>
+                  )}
+                  {item.status === "completed" && !item.recipeId && (
                     <CheckCircle2 className="h-5 w-5 text-sage" />
                   )}
                   {item.status === "failed" && (

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TimerButton } from "@/components/cooking-timer";
-import { getRecipeById } from "@/lib/demo-data";
+import { useRecipe } from "@/lib/recipes";
 import { useAppStore } from "@/lib/store";
 
 export default function CookingModePage({
@@ -22,7 +22,7 @@ export default function CookingModePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const recipe = getRecipeById(id);
+  const recipe = useRecipe(id);
   const { checkedIngredients, toggleIngredient, startTimer, activeTimers } = useAppStore();
   const [currentStep, setCurrentStep] = useState(0);
   const [showIngredients, setShowIngredients] = useState(false);
