@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, DM_Sans } from "next/font/google";
 import "./globals.css";
 
@@ -19,6 +19,12 @@ export const metadata: Metadata = {
   description:
     "Preserve generations of recipes, memories, and family traditions in a beautiful digital heirloom.",
   keywords: ["family cookbook", "recipes", "memories", "AI", "heritage"],
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#F8F6F2",
 };
 
 export default function RootLayout({

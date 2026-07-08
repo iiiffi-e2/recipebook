@@ -6,7 +6,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <RecipesProvider>
       <div className="min-h-screen bg-cream">
         <Sidebar />
-        <main className="ml-64 min-h-screen p-8 lg:p-12">{children}</main>
+        <main className="min-h-screen px-4 pb-10 pt-20 sm:px-6 sm:pb-12 lg:ml-64 lg:px-12 lg:py-12">
+          {children}
+        </main>
       </div>
     </RecipesProvider>
   );

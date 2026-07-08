@@ -52,15 +52,15 @@ export default function LandingPage() {
     <div className="min-h-screen bg-cream">
       {/* Navigation */}
       <nav className="fixed top-0 z-50 w-full border-b border-warm-gray/40 bg-cream/80 backdrop-blur-md">
-        <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6 lg:px-12">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sage/20">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:h-20 sm:px-6 lg:px-12">
+          <Link href="/" className="flex items-center gap-2 sm:gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sage/20 sm:h-10 sm:w-10">
               <ChefHat className="h-5 w-5 text-sage" />
             </div>
-            <span className="font-serif text-2xl font-medium text-charcoal">Heirloom</span>
+            <span className="font-serif text-xl font-medium text-charcoal sm:text-2xl">Heirloom</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/app">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <Link href="/app" className="hidden sm:block">
               <Button variant="ghost">Open Cookbook</Button>
             </Link>
             <Link href="/app/import">
@@ -75,8 +75,8 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative overflow-hidden pt-20">
-        <div className="mx-auto max-w-7xl px-6 py-24 lg:px-12 lg:py-32">
-          <div className="grid items-center gap-16 lg:grid-cols-2">
+        <div className="mx-auto max-w-7xl px-6 py-16 sm:py-24 lg:px-12 lg:py-32">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <motion.div {...fadeUp}>
               <div className="mb-6 inline-flex items-center gap-2 rounded-full bg-sage/15 px-4 py-2 text-sm text-sage">
                 <Sparkles className="h-4 w-4" />
@@ -146,9 +146,9 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="border-t border-warm-gray/40 bg-ivory/50 py-24">
+      <section className="border-t border-warm-gray/40 bg-ivory/50 py-16 sm:py-24">
         <div className="mx-auto max-w-7xl px-6 lg:px-12">
-          <div className="mb-16 text-center">
+          <div className="mb-12 text-center sm:mb-16">
             <h2 className="font-serif text-4xl font-medium text-charcoal lg:text-5xl">
               More than a recipe manager
             </h2>
@@ -183,7 +183,7 @@ export default function LandingPage() {
       </section>
 
       {/* Emotional CTA */}
-      <section className="py-24">
+      <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-4xl px-6 text-center lg:px-12">
           <motion.div
             initial={{ opacity: 0 }}

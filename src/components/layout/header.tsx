@@ -23,18 +23,18 @@ export function Header({ title, subtitle, showSearch = false }: HeaderProps) {
   };
 
   return (
-    <header className="mb-8">
-      <div className="flex items-start justify-between gap-6">
-        <div>
-          <h1 className="font-serif text-4xl font-medium tracking-tight text-charcoal">
+    <header className="mb-6 sm:mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <h1 className="font-serif text-3xl font-medium tracking-tight text-charcoal sm:text-4xl">
             {title}
           </h1>
           {subtitle && (
-            <p className="mt-2 text-charcoal-muted">{subtitle}</p>
+            <p className="mt-2 text-sm text-charcoal-muted sm:text-base">{subtitle}</p>
           )}
         </div>
         {showSearch && (
-          <form onSubmit={handleSearch} className="relative w-full max-w-md">
+          <form onSubmit={handleSearch} className="relative w-full sm:max-w-md">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-charcoal-muted" />
             <Input
               placeholder="Search recipes, ingredients, memories..."

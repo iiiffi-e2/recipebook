@@ -80,7 +80,7 @@ export default function RecipePage({
           {recipe.cuisine && <Badge variant="outline">{recipe.cuisine}</Badge>}
           <Badge variant="secondary">{recipe.difficulty}</Badge>
         </div>
-        <h1 className="font-serif text-4xl font-medium text-ivory lg:text-5xl">
+        <h1 className="font-serif text-3xl font-medium text-ivory sm:text-4xl lg:text-5xl">
           {recipe.title}
         </h1>
         {recipe.source.familyMember && (
@@ -156,12 +156,14 @@ export default function RecipePage({
       )}
 
       <Tabs defaultValue="recipe" className="mb-12">
-        <TabsList>
-          <TabsTrigger value="recipe">Recipe</TabsTrigger>
-          <TabsTrigger value="memories">Memories ({recipe.memories.length})</TabsTrigger>
-          <TabsTrigger value="original">Original</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <TabsList className="w-max">
+            <TabsTrigger value="recipe">Recipe</TabsTrigger>
+            <TabsTrigger value="memories">Memories ({recipe.memories.length})</TabsTrigger>
+            <TabsTrigger value="original">Original</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="recipe">
           <div className="grid gap-10 lg:grid-cols-5">

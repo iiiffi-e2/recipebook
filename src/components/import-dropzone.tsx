@@ -199,7 +199,7 @@ export function ImportDropzone() {
       <div
         {...getRootProps()}
         className={cn(
-          "relative cursor-pointer rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-16 text-center transition-all duration-300",
+          "relative cursor-pointer rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-8 text-center transition-all duration-300 sm:p-16",
           isDragActive && "drop-zone-active border-sage bg-sage/5",
           !isDragActive && "hover:border-sage hover:bg-ivory"
         )}
@@ -219,7 +219,7 @@ export function ImportDropzone() {
             Drag and drop photos, screenshots, PDFs, handwritten cards, or entire folders.
             Our AI will extract and organize everything automatically.
           </p>
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Button type="button">Choose Files</Button>
             <Button
               type="button"

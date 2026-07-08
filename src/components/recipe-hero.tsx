@@ -186,7 +186,7 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
   return (
     <div className="mb-10">
       <div
-        className="group relative aspect-[21/9] overflow-hidden rounded-3xl"
+        className="group relative aspect-[4/3] overflow-hidden rounded-3xl sm:aspect-[16/9] lg:aspect-[21/9]"
         onMouseEnter={() => setShowControls(true)}
         onMouseLeave={() => setShowControls(false)}
       >
@@ -268,7 +268,7 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
         </AnimatePresence>
 
         {/* Title overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-12">{children}</div>
+        <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-8 lg:p-12">{children}</div>
       </div>
 
       {/* Mobile-friendly controls (always visible on small screens) */}

@@ -55,17 +55,17 @@ export default function CookingModePage({
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-charcoal cooking-mode">
+    <div className="fixed inset-0 z-50 flex flex-col bg-charcoal cooking-mode">
       {/* Top bar */}
-      <div className="flex items-center justify-between p-4 text-ivory">
-        <Link href={`/app/recipes/${recipe.id}`}>
+      <div className="flex items-center justify-between gap-2 p-4 text-ivory">
+        <Link href={`/app/recipes/${recipe.id}`} className="flex-shrink-0">
           <Button variant="ghost" size="icon" className="text-ivory hover:bg-ivory/10">
             <X className="h-6 w-6" />
           </Button>
         </Link>
-        <div className="text-center">
+        <div className="min-w-0 text-center">
           <p className="text-sm text-ivory/60">Cooking</p>
-          <p className="font-serif text-lg font-medium">{recipe.title}</p>
+          <p className="truncate font-serif text-lg font-medium">{recipe.title}</p>
         </div>
         <Button
           variant="ghost"
@@ -93,7 +93,7 @@ export default function CookingModePage({
       </div>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+      <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 sm:py-12">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentStep}
@@ -124,7 +124,7 @@ export default function CookingModePage({
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-between p-6">
+      <div className="flex items-center justify-between gap-3 p-4 sm:p-6">
         <Button
           variant="outline"
           size="lg"
