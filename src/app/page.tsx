@@ -115,7 +115,7 @@ export default function LandingPage() {
             >
               <div className="relative aspect-[4/5] overflow-hidden rounded-3xl shadow-[var(--shadow-card)]">
                 <Image
-                  src="https://images.unsplash.com/photo-1535920527002-b35e967229eb?w=800&h=1000&fit=crop"
+                  src="https://images.unsplash.com/photo-1694505396696-b093cca3d8ea?w=800&h=1000&fit=crop"
                   alt="Grandma's apple pie"
                   fill
                   className="object-cover"
