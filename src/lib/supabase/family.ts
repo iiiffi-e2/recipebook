@@ -60,36 +60,40 @@ export async function ensureUserFamily(
   let attempt = 0;
 
   while (attempt < 5) {
-    const { data: family, error: familyError } = await supabase
-      .from("families")
-      .insert({
-        name: familyName,
-        slug,
-      })
-      .select("id, name, slug")
-      .single();
+    const familyId = crypto.randomUUID();
 
-    if (family && !familyError) {
-      const { error: memberError } = await supabase.from("family_members").insert({
-        family_id: family.id,
-        user_id: userId,
-        role: "owner",
-      });
+    const { error: familyError } = await supabase.from("families").insert({
+      id: familyId,
+      name: familyName,
+      slug,
+    });
 
-      if (memberError) {
-        throw memberError;
+    if (familyError) {
+      if (familyError.code === "23505") {
+        attempt += 1;
+        slug = `${baseSlug}-${attempt}`;
+        continue;
       }
 
-      return {
-        familyId: family.id,
-        role: "owner",
-        name: family.name,
-        slug: family.slug,
-      };
+      throw familyError;
     }
 
-    attempt += 1;
-    slug = `${baseSlug}-${attempt}`;
+    const { error: memberError } = await supabase.from("family_members").insert({
+      family_id: familyId,
+      user_id: userId,
+      role: "owner",
+    });
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    return {
+      familyId,
+      role: "owner",
+      name: familyName,
+      slug,
+    };
   }
 
   throw new Error("Could not create a family cookbook");
