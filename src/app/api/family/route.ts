@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { ensureUserFamily, getUserFamily } from "@/lib/supabase/family";
+import {
+  ensureProfile,
+  ensureUserFamily,
+  getFamilyActivity,
+  getFamilyMembers,
+  getUserFamily,
+} from "@/lib/supabase/family";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
-    return NextResponse.json({ configured: false, family: null });
+    return NextResponse.json({ configured: false, members: [], activity: [] });
   }
 
   try {
@@ -18,10 +24,33 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (user.email) {
+      await ensureProfile(supabase, user.id, user.email);
+    }
+
     const family = await getUserFamily(supabase, user.id);
-    return NextResponse.json({ family, user: { email: user.email } });
+    if (!family) {
+      return NextResponse.json({ family: null, members: [], activity: [], recipeCount: 0 });
+    }
+
+    const [members, activity] = await Promise.all([
+      getFamilyMembers(supabase, family.familyId),
+      getFamilyActivity(supabase, family.familyId),
+    ]);
+
+    const { count } = await supabase
+      .from("recipes")
+      .select("id", { count: "exact", head: true })
+      .eq("family_id", family.familyId);
+
+    return NextResponse.json({
+      family,
+      members,
+      activity,
+      recipeCount: count ?? 0,
+    });
   } catch (error) {
-    console.error("Fetch family error:", error);
+    console.error("Fetch family members error:", error);
     return NextResponse.json({ error: "Failed to load family" }, { status: 500 });
   }
 }
@@ -45,7 +74,8 @@ export async function POST(request: Request) {
     const family = await ensureUserFamily(
       supabase,
       user.id,
-      body.familyName?.trim() || "My Family Cookbook"
+      body.familyName?.trim() || "My Family Cookbook",
+      user.email ?? undefined
     );
 
     return NextResponse.json({ family });

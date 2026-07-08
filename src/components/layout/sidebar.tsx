@@ -27,11 +27,13 @@ const navigation = [
   { name: "Cookbook", href: "/app", icon: BookOpen },
   { name: "Import", href: "/app/import", icon: Upload },
   { name: "Assistant", href: "/app/assistant", icon: MessageCircle },
-  { name: "Meal Planner", href: "/app/planner", icon: Calendar },
-  { name: "Shopping", href: "/app/shopping", icon: ShoppingCart },
-  { name: "Memories", href: "/app/memories", icon: Heart },
+  { name: "Meal Planner", href: "/app/planner", icon: Calendar, demoOnly: true },
+  { name: "Shopping", href: "/app/shopping", icon: ShoppingCart, demoOnly: true },
+  { name: "Memories", href: "/app/memories", icon: Heart, demoOnly: true },
   { name: "Family", href: "/app/family", icon: Users },
-];
+] as const;
+
+type NavItem = (typeof navigation)[number];
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -39,6 +41,9 @@ export function Sidebar() {
   const { family } = useFamilyInfo();
   const recipes = useAllRecipes();
   const configured = isSupabaseConfigured();
+  const visibleNavigation = navigation.filter(
+    (item) => !configured || !("demoOnly" in item && item.demoOnly)
+  );
   const [open, setOpen] = useState(false);
   const closeDrawer = () => setOpen(false);
 
@@ -118,7 +123,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-4 py-4">
-          {navigation.map((item) => {
+          {visibleNavigation.map((item: NavItem) => {
             const isActive =
               pathname === item.href ||
               (item.href !== "/app" && pathname.startsWith(item.href));

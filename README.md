@@ -65,6 +65,7 @@ Run these files in your Supabase SQL editor:
 ```bash
 supabase/schema.sql
 supabase/storage.sql
+supabase/family-invites.sql   # if upgrading an existing database
 ```
 
 If you already seeded a test user and family manually, sign in with that account instead of creating a new one.
