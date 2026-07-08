@@ -2,6 +2,13 @@ import { create } from "zustand";
 import type { ImportItem, ChatMessage, ShoppingItem, MealPlanEntry } from "./types";
 import { demoShoppingList, demoMealPlan } from "./demo-data";
 
+export type HeroImageSource = "default" | "upload" | "generated";
+
+export interface HeroOverride {
+  url: string;
+  source: HeroImageSource;
+}
+
 interface AppState {
   importQueue: ImportItem[];
   addToImportQueue: (items: ImportItem[]) => void;
@@ -27,6 +34,10 @@ interface AppState {
   activeTimers: { recipeId: string; stepId: string; minutes: number; startedAt: number }[];
   startTimer: (recipeId: string, stepId: string, minutes: number) => void;
   stopTimer: (recipeId: string, stepId: string) => void;
+
+  heroOverrides: Record<string, HeroOverride>;
+  setHeroImage: (recipeId: string, url: string, source: HeroImageSource) => void;
+  resetHeroImage: (recipeId: string) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -98,4 +109,28 @@ export const useAppStore = create<AppState>((set) => ({
         (t) => !(t.recipeId === recipeId && t.stepId === stepId)
       ),
     })),
+
+  heroOverrides: {},
+  setHeroImage: (recipeId, url, source) =>
+    set((state) => ({
+      heroOverrides: {
+        ...state.heroOverrides,
+        [recipeId]: { url, source },
+      },
+    })),
+  resetHeroImage: (recipeId) =>
+    set((state) => {
+      const next = { ...state.heroOverrides };
+      delete next[recipeId];
+      return { heroOverrides: next };
+    }),
 }));
+
+export function useRecipeHero(recipeId: string, defaultUrl: string) {
+  const override = useAppStore((s) => s.heroOverrides[recipeId]);
+  return {
+    heroImage: override?.url ?? defaultUrl,
+    heroSource: override?.source ?? ("default" as HeroImageSource),
+    isCustom: Boolean(override),
+  };
+}

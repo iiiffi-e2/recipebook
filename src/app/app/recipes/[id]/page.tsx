@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RecipeHero } from "@/components/recipe-hero";
 import { getRecipeById } from "@/lib/demo-data";
 import { useAppStore } from "@/lib/store";
 import { formatDuration, formatDate } from "@/lib/utils";
@@ -52,32 +53,22 @@ export default function RecipePage({
       </Link>
 
       {/* Hero */}
-      <div className="relative mb-10 aspect-[21/9] overflow-hidden rounded-3xl">
-        <Image
-          src={recipe.heroImage}
-          alt={recipe.title}
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/70 via-charcoal/20 to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-8 lg:p-12">
-          <div className="flex flex-wrap gap-2 mb-4">
-            <Badge variant="sage">{recipe.category}</Badge>
-            {recipe.cuisine && <Badge variant="outline">{recipe.cuisine}</Badge>}
-            <Badge variant="secondary">{recipe.difficulty}</Badge>
-          </div>
-          <h1 className="font-serif text-4xl font-medium text-ivory lg:text-5xl">
-            {recipe.title}
-          </h1>
-          {recipe.source.familyMember && (
-            <p className="mt-2 flex items-center gap-2 text-ivory/80">
-              <Users className="h-4 w-4" />
-              From {recipe.source.familyMember}
-            </p>
-          )}
+      <RecipeHero recipe={recipe}>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Badge variant="sage">{recipe.category}</Badge>
+          {recipe.cuisine && <Badge variant="outline">{recipe.cuisine}</Badge>}
+          <Badge variant="secondary">{recipe.difficulty}</Badge>
         </div>
-      </div>
+        <h1 className="font-serif text-4xl font-medium text-ivory lg:text-5xl">
+          {recipe.title}
+        </h1>
+        {recipe.source.familyMember && (
+          <p className="mt-2 flex items-center gap-2 text-ivory/80">
+            <Users className="h-4 w-4" />
+            From {recipe.source.familyMember}
+          </p>
+        )}
+      </RecipeHero>
 
       {/* Actions */}
       <div className="mb-10 flex flex-wrap gap-3">
