@@ -284,15 +284,54 @@ export function ImportDropzone() {
     [addImportedRecipe, refreshRecipes, updateImportItem, usingDatabase]
   );
 
+  const retryPendingAttaches = useCallback(async () => {
+    const pending = [...pendingAttachRef.current];
+    pendingAttachRef.current = [];
+
+    for (const item of pending) {
+      const groupImages = item.group.imageIds
+        .map((id) => item.images.find((img) => img.id === id))
+        .filter((img): img is ImportImageMeta => Boolean(img));
+      const nearest = findNearestCompletedRecipe({
+        captureTimes: groupImages.map((img) => img.captureTime),
+        fileNames: groupImages.map((img) => img.fileName),
+        completed: batchCompletedRef.current,
+      });
+
+      if (!nearest) {
+        continue;
+      }
+
+      if (usingDatabase) {
+        const formData = new FormData();
+        for (const file of item.files) formData.append("file", file);
+        const attachResponse = await fetch(`/api/recipes/${nearest.recipeId}/originals`, {
+          method: "POST",
+          body: formData,
+        });
+        if (!attachResponse.ok) continue;
+        await refreshRecipes();
+      }
+
+      updateImportItem(item.queueId, {
+        status: "skipped",
+        error: `No usable recipe found — attached as notes to “${nearest.title}”`,
+        recipeId: nearest.recipeId,
+        recipeTitle: nearest.title,
+      });
+    }
+  }, [refreshRecipes, updateImportItem, usingDatabase]);
+
   const processConfirmedGroups = useCallback(
     async (groups: RecipeGroup[], images: ImportImageMeta[]) => {
       setIsProcessing(true);
       for (const group of groups) {
         await processGroup(group, images);
       }
+      await retryPendingAttaches();
       setIsProcessing(false);
     },
-    [processGroup]
+    [processGroup, retryPendingAttaches]
   );
 
   const processFiles = useCallback(
