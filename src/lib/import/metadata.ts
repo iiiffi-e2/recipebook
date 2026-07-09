@@ -7,7 +7,9 @@ export function getCaptureTime(file: File): number {
     return file.lastModified;
   }
 
-  const match = file.name.match(/(20\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_]?(\d{2})?(\d{2})?(\d{2})?/);
+  const match = file.name.match(
+    /(20\d{2})[-_]?(\d{2})[-_]?(\d{2})[-_ ]?(\d{2})?[-_:]?(\d{2})?[-_:]?(\d{2})?/
+  );
   if (match) {
     const [, y, mo, d, h = "0", mi = "0", s = "0"] = match;
     const parsed = new Date(
@@ -25,11 +27,11 @@ export function getCaptureTime(file: File): number {
 }
 
 export function filenameStem(fileName: string): string {
-  return fileName
-    .replace(/\.[^.]+$/, "")
-    .toLowerCase()
+  const base = fileName.replace(/\.[^.]+$/, "").toLowerCase();
+  const stripped = base
     .replace(/[\s._-]*\d+([\s._-]\d+)*$/, "")
     .replace(/[\s._-]+$/, "");
+  return stripped.length > 0 ? stripped : base;
 }
 
 export function numericSuffix(fileName: string): number | null {
