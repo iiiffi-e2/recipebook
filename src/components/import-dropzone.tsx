@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -97,6 +97,18 @@ export function ImportDropzone() {
   const { usingDatabase, refreshRecipes } = useRecipesContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const fileMapRef = useRef<Map<string, File>>(new Map());
+  const objectUrlsRef = useRef<Set<string>>(new Set());
+
+  // Revoke any object URLs still outstanding when leaving the import view.
+  // URLs adopted by a locally-stored recipe (non-DB mode) are removed from the
+  // set as they're used, so they survive navigation.
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url));
+      urls.clear();
+    };
+  }, []);
 
   const processGroup = useCallback(
     async (group: RecipeGroup, images: ImportImageMeta[]) => {
@@ -140,6 +152,8 @@ export function ImportDropzone() {
           });
         } else {
           addImportedRecipe(recipe);
+          // These previews now back a stored recipe; don't revoke them.
+          previewUrls.forEach((url) => objectUrlsRef.current.delete(url));
           updateImportItem(queueId, {
             status: "completed",
             recipeId: recipe.id,
@@ -157,6 +171,12 @@ export function ImportDropzone() {
                 : "Import failed",
         });
       }
+
+      // The group's files are no longer needed once processed.
+      for (const id of group.imageIds) {
+        fileMapRef.current.delete(id);
+      }
+
       await new Promise((resolve) => setTimeout(resolve, 400));
     },
     [addImportedRecipe, refreshRecipes, updateImportItem, usingDatabase]
@@ -179,13 +199,17 @@ export function ImportDropzone() {
       for (const file of files) {
         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         fileMapRef.current.set(id, file);
+        const previewUrl = file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : undefined;
+        if (previewUrl) objectUrlsRef.current.add(previewUrl);
         images.push({
           id,
           fileName: file.name,
           fileType: file.type,
           fileSize: file.size,
           captureTime: getCaptureTime(file),
-          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+          previewUrl,
           thumbnail: file.type.startsWith("image/") ? await createThumbnail(file) : undefined,
         });
       }

@@ -44,6 +44,11 @@ function newGroupId(seed: string): string {
   return `group-${seed}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function clamp01(value: number): number {
+  if (Number.isNaN(value)) return 0.6;
+  return Math.max(0, Math.min(1, value));
+}
+
 // A lone image is confidently its own recipe; a metadata cluster of >1 is a
 // medium-confidence guess that should be reviewed unless AI confirms it.
 function fallbackGroups(provisionalGroups: string[][]): RecipeGroup[] {
@@ -110,7 +115,7 @@ async function groupChunk(images: GroupImageInput[]): Promise<RecipeGroup[] | nu
         groups.push({
           id: newGroupId("ai"),
           imageIds,
-          confidence: typeof g.confidence === "number" ? g.confidence : 0.6,
+          confidence: typeof g.confidence === "number" ? clamp01(g.confidence) : 0.6,
           needsReview: false,
         });
       }
