@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { motion, AnimatePresence } from "framer-motion";
@@ -21,6 +21,11 @@ import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore } from "@/lib/store";
 import { normalizeExtractedRecipe } from "@/lib/import-recipe";
 import { recipeToSaveInput } from "@/lib/supabase/recipes";
+import { createThumbnail } from "@/lib/import/thumbnail";
+import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
+import { applyConfidenceGate } from "@/lib/import/grouping";
+import { ImportReview } from "@/components/import/import-review";
+import type { ImportImageMeta, RecipeGroup } from "@/lib/import/types";
 import type { ImportItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -34,25 +39,20 @@ const ACCEPTED_TYPES = {
 
 const INGEST_TIMEOUT_MS = 120_000;
 
-async function ingestFile(file: File) {
+async function ingestGroup(files: File[]) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS);
-
   try {
     const formData = new FormData();
-    formData.append("file", file);
+    for (const file of files) formData.append("file", file);
 
     const response = await fetch("/api/ingest", {
       method: "POST",
       body: formData,
       signal: controller.signal,
     });
-
     const data = await response.json().catch(() => null);
-
-    if (!response.ok) {
-      throw new Error(data?.error || "Import failed");
-    }
+    if (!response.ok) throw new Error(data?.error || "Import failed");
 
     return data as {
       success?: boolean;
@@ -66,95 +66,176 @@ async function ingestFile(file: File) {
 }
 
 export function ImportDropzone() {
-  const { importQueue, addToImportQueue, updateImportItem, addImportedRecipe } =
-    useAppStore();
+  const {
+    importQueue,
+    addToImportQueue,
+    updateImportItem,
+    addImportedRecipe,
+    reviewGroups,
+    reviewImages,
+    setReview,
+    clearReview,
+  } = useAppStore();
   const { usingDatabase, refreshRecipes } = useRecipesContext();
   const [isProcessing, setIsProcessing] = useState(false);
+  const fileMapRef = useRef<Map<string, File>>(new Map());
+
+  const processGroup = useCallback(
+    async (group: RecipeGroup, images: ImportImageMeta[]) => {
+      const groupImages = group.imageIds
+        .map((id) => images.find((img) => img.id === id))
+        .filter((img): img is ImportImageMeta => Boolean(img));
+      const files = group.imageIds
+        .map((id) => fileMapRef.current.get(id))
+        .filter((f): f is File => Boolean(f));
+
+      const queueId = groupImages[0]?.id ?? `group-${Date.now()}`;
+      updateImportItem(queueId, { status: "processing" });
+
+      try {
+        const data = await ingestGroup(files);
+        const recipeId = data.recipeId || `imported-${Date.now()}`;
+        const previewUrls = groupImages
+          .map((img) => img.previewUrl)
+          .filter((url): url is string => Boolean(url));
+        const recipe = normalizeExtractedRecipe(data.recipe ?? {}, recipeId, {
+          previewUrls,
+          fileName: groupImages[0]?.fileName,
+        });
+
+        if (usingDatabase) {
+          const formData = new FormData();
+          formData.append("recipe", JSON.stringify(recipeToSaveInput(recipe)));
+          for (const file of files) formData.append("file", file);
+          formData.append("fileName", groupImages[0]?.fileName ?? "recipe");
+
+          const persistResponse = await fetch("/api/recipes", { method: "POST", body: formData });
+          const persistData = await persistResponse.json().catch(() => null);
+          if (!persistResponse.ok) {
+            throw new Error(persistData?.error || "Failed to save recipe to database");
+          }
+          await refreshRecipes();
+          updateImportItem(queueId, {
+            status: "completed",
+            recipeId: persistData.recipe.id,
+            recipeTitle: persistData.recipe.title,
+          });
+        } else {
+          addImportedRecipe(recipe);
+          updateImportItem(queueId, {
+            status: "completed",
+            recipeId: recipe.id,
+            recipeTitle: recipe.title,
+          });
+        }
+      } catch (error) {
+        updateImportItem(queueId, {
+          status: "failed",
+          error:
+            error instanceof Error && error.name === "AbortError"
+              ? "Import timed out. Try fewer/smaller images."
+              : error instanceof Error
+                ? error.message
+                : "Import failed",
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    },
+    [addImportedRecipe, refreshRecipes, updateImportItem, usingDatabase]
+  );
+
+  const processConfirmedGroups = useCallback(
+    async (groups: RecipeGroup[], images: ImportImageMeta[]) => {
+      setIsProcessing(true);
+      for (const group of groups) {
+        await processGroup(group, images);
+      }
+      setIsProcessing(false);
+    },
+    [processGroup]
+  );
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      const newItems: ImportItem[] = files.map((file) => ({
-        id: `import-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        fileName: file.name,
-        fileType: file.type,
-        fileSize: file.size,
-        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
-        status: "pending" as const,
-        uploadedAt: new Date().toISOString(),
-      }));
-
-      addToImportQueue(newItems);
-      setIsProcessing(true);
-
-      for (const item of newItems) {
-        updateImportItem(item.id, { status: "processing" });
-
-        const file = files.find((candidate) => candidate.name === item.fileName);
-        if (!file) {
-          updateImportItem(item.id, {
-            status: "failed",
-            error: "Could not read uploaded file",
-          });
-          continue;
-        }
-
-        try {
-          const data = await ingestFile(file);
-          const recipeId = data.recipeId || `imported-${Date.now()}`;
-          const recipe = normalizeExtractedRecipe(data.recipe ?? {}, recipeId, {
-            previewUrl: item.previewUrl,
-            fileName: item.fileName,
-          });
-
-          if (usingDatabase) {
-            const formData = new FormData();
-            formData.append("recipe", JSON.stringify(recipeToSaveInput(recipe)));
-            formData.append("file", file);
-            formData.append("fileName", item.fileName);
-
-            const persistResponse = await fetch("/api/recipes", {
-              method: "POST",
-              body: formData,
-            });
-            const persistData = await persistResponse.json().catch(() => null);
-
-            if (!persistResponse.ok) {
-              throw new Error(persistData?.error || "Failed to save recipe to database");
-            }
-
-            await refreshRecipes();
-            updateImportItem(item.id, {
-              status: "completed",
-              recipeId: persistData.recipe.id,
-              recipeTitle: persistData.recipe.title,
-            });
-          } else {
-            addImportedRecipe(recipe);
-            updateImportItem(item.id, {
-              status: "completed",
-              recipeId: recipe.id,
-              recipeTitle: recipe.title,
-            });
-          }
-        } catch (error) {
-          updateImportItem(item.id, {
-            status: "failed",
-            error:
-              error instanceof Error && error.name === "AbortError"
-                ? "Import timed out. Try a smaller image or paste the recipe text instead."
-                : error instanceof Error
-                  ? error.message
-                  : "Import failed",
-          });
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, 400));
+      const images: ImportImageMeta[] = [];
+      for (const file of files) {
+        const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        fileMapRef.current.set(id, file);
+        images.push({
+          id,
+          fileName: file.name,
+          fileType: file.type,
+          fileSize: file.size,
+          captureTime: getCaptureTime(file),
+          previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+          thumbnail: file.type.startsWith("image/") ? await createThumbnail(file) : undefined,
+        });
       }
 
-      setIsProcessing(false);
+      const imageMetas = images.filter((i) => i.fileType.startsWith("image/"));
+      const nonImageGroups: RecipeGroup[] = images
+        .filter((i) => !i.fileType.startsWith("image/"))
+        .map((i) => ({ id: `g-${i.id}`, imageIds: [i.id], confidence: 1, needsReview: false }));
+
+      let groups: RecipeGroup[] = [...nonImageGroups];
+
+      if (imageMetas.length > 0) {
+        const provisional = preClusterByMetadata(imageMetas).map((c) => c.map((i) => i.id));
+        const response = await fetch("/api/ingest/group", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            images: imageMetas.map((i) => ({
+              id: i.id,
+              fileName: i.fileName,
+              captureTime: i.captureTime,
+              thumbnail: i.thumbnail,
+            })),
+            provisionalGroups: provisional,
+          }),
+        });
+        const data = (await response.json().catch(() => ({ groups: [] }))) as {
+          groups: RecipeGroup[];
+        };
+        const gated = applyConfidenceGate(data.groups ?? []);
+        groups = [...groups, ...gated];
+      }
+
+      const queueItems: ImportItem[] = groups.map((g) => {
+        const first = images.find((i) => i.id === g.imageIds[0]);
+        return {
+          id: g.imageIds[0],
+          fileName:
+            g.imageIds.length > 1
+              ? `${first?.fileName ?? "recipe"} (+${g.imageIds.length - 1})`
+              : first?.fileName ?? "recipe",
+          fileType: first?.fileType ?? "",
+          fileSize: first?.fileSize ?? 0,
+          previewUrl: first?.previewUrl,
+          status: "pending" as const,
+          uploadedAt: new Date().toISOString(),
+        };
+      });
+      addToImportQueue(queueItems);
+
+      const confident = groups.filter((g) => !g.needsReview);
+      const uncertain = groups.filter((g) => g.needsReview);
+
+      await processConfirmedGroups(confident, images);
+
+      if (uncertain.length > 0) {
+        setReview(images, uncertain);
+      }
     },
-    [addImportedRecipe, addToImportQueue, refreshRecipes, updateImportItem, usingDatabase]
+    [addToImportQueue, processConfirmedGroups, setReview]
   );
+
+  const handleConfirmReview = useCallback(async () => {
+    const groups = reviewGroups;
+    const images = reviewImages;
+    clearReview();
+    await processConfirmedGroups(groups, images);
+  }, [reviewGroups, reviewImages, clearReview, processConfirmedGroups]);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
@@ -246,6 +327,8 @@ export function ImportDropzone() {
           </div>
         ))}
       </div>
+
+      {reviewGroups.length > 0 && <ImportReview onConfirm={handleConfirmReview} />}
 
       <AnimatePresence>
         {importQueue.length > 0 && (
