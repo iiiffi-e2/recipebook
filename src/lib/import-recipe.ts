@@ -21,8 +21,8 @@ type ExtractedInstruction = {
 type ExtractedRecipe = {
   title?: string;
   description?: string;
-  ingredients?: ExtractedIngredient[] | string;
-  instructions?: ExtractedInstruction[] | string[] | string;
+  ingredients?: Array<ExtractedIngredient | string> | string;
+  instructions?: Array<ExtractedInstruction | string> | string;
   prepTime?: number | null;
   cookTime?: number | null;
   servings?: number | null;
@@ -34,9 +34,9 @@ type ExtractedRecipe = {
   source?: Recipe["source"] | null;
 };
 
-function asList<T>(value: T[] | string | null | undefined): Array<T | string> {
+function asList<T>(value: readonly T[] | string | null | undefined): Array<T | string> {
   if (value == null) return [];
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) return [...value];
   if (typeof value === "string") {
     const trimmed = value.trim();
     return trimmed ? [trimmed] : [];

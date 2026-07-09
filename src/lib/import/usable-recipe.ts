@@ -1,9 +1,9 @@
 type RawIngredient = { name?: string; ingredient?: string } | string;
 type RawInstruction = { text?: string; instruction?: string } | string;
 
-function asList<T>(value: T[] | string | null | undefined): Array<T | string> {
+function asList<T>(value: readonly T[] | string | null | undefined): Array<T | string> {
   if (value == null) return [];
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) return [...value];
   if (typeof value === "string") {
     const trimmed = value.trim();
     return trimmed ? [trimmed] : [];
