@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ImportItem, ChatMessage, ShoppingItem, MealPlanEntry, Recipe } from "./types";
+import type { ImportImageMeta, RecipeGroup } from "./import/types";
 import { demoShoppingList, demoMealPlan } from "./demo-data";
 
 export type HeroImageSource = "default" | "upload" | "generated";
@@ -14,6 +15,12 @@ interface AppState {
   addToImportQueue: (items: ImportItem[]) => void;
   updateImportItem: (id: string, updates: Partial<ImportItem>) => void;
   clearImportQueue: () => void;
+
+  reviewImages: ImportImageMeta[];
+  reviewGroups: RecipeGroup[];
+  setReview: (images: ImportImageMeta[], groups: RecipeGroup[]) => void;
+  setReviewGroups: (groups: RecipeGroup[]) => void;
+  clearReview: () => void;
 
   importedRecipes: Recipe[];
   addImportedRecipe: (recipe: Recipe) => void;
@@ -54,6 +61,12 @@ export const useAppStore = create<AppState>((set) => ({
       ),
     })),
   clearImportQueue: () => set({ importQueue: [] }),
+
+  reviewImages: [],
+  reviewGroups: [],
+  setReview: (images, groups) => set({ reviewImages: images, reviewGroups: groups }),
+  setReviewGroups: (groups) => set({ reviewGroups: groups }),
+  clearReview: () => set({ reviewImages: [], reviewGroups: [] }),
 
   importedRecipes: [],
   addImportedRecipe: (recipe) =>
