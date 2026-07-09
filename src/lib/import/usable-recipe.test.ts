@@ -37,4 +37,20 @@ describe("isUsableRecipe", () => {
   it("accepts string instructions", () => {
     expect(isUsableRecipe({ instructions: ["Bake 20 minutes"] })).toBe(true);
   });
+
+  it("accepts a single instructions string from the model", () => {
+    expect(
+      isUsableRecipe({
+        instructions: "Mix well and bake for 20 minutes",
+      })
+    ).toBe(true);
+  });
+
+  it("rejects a blank instructions string", () => {
+    expect(
+      isUsableRecipe({
+        instructions: "   ",
+      })
+    ).toBe(false);
+  });
 });

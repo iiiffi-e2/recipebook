@@ -21,8 +21,8 @@ type ExtractedInstruction = {
 type ExtractedRecipe = {
   title?: string;
   description?: string;
-  ingredients?: ExtractedIngredient[];
-  instructions?: ExtractedInstruction[] | string[];
+  ingredients?: ExtractedIngredient[] | string;
+  instructions?: ExtractedInstruction[] | string[] | string;
   prepTime?: number | null;
   cookTime?: number | null;
   servings?: number | null;
@@ -33,6 +33,16 @@ type ExtractedRecipe = {
   cookingMethod?: string | null;
   source?: Recipe["source"] | null;
 };
+
+function asList<T>(value: T[] | string | null | undefined): Array<T | string> {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
+}
 
 function slugify(value: string): string {
   return value
@@ -88,15 +98,26 @@ export function normalizeExtractedRecipe(
         ? [options.previewUrl]
         : [];
 
-  const ingredients = (raw.ingredients ?? []).map((ingredient, index) => ({
-    id: String(index + 1),
-    amount: String(ingredient.amount ?? ""),
-    unit: String(ingredient.unit ?? ""),
-    name: String(ingredient.name ?? ingredient.ingredient ?? ""),
-    notes: ingredient.notes ? String(ingredient.notes) : undefined,
-  }));
+  const ingredients = asList(raw.ingredients).map((ingredient, index) => {
+    if (typeof ingredient === "string") {
+      return {
+        id: String(index + 1),
+        amount: "",
+        unit: "",
+        name: ingredient,
+      };
+    }
 
-  const instructions = (raw.instructions ?? []).map((instruction, index) => {
+    return {
+      id: String(index + 1),
+      amount: String(ingredient.amount ?? ""),
+      unit: String(ingredient.unit ?? ""),
+      name: String(ingredient.name ?? ingredient.ingredient ?? ""),
+      notes: ingredient.notes ? String(ingredient.notes) : undefined,
+    };
+  });
+
+  const instructions = asList(raw.instructions).map((instruction, index) => {
     if (typeof instruction === "string") {
       return {
         id: String(index + 1),

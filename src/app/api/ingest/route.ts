@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
           {
             role: "system",
             content:
-              "Extract recipe information and return JSON with: title, ingredients, instructions, prepTime, cookTime, servings, difficulty, category, tags. Return ONLY valid JSON.",
+              "Extract recipe information and return JSON with: title, description, ingredients (array of {amount, unit, name, notes}), instructions (array of {step, text, timerMinutes}), prepTime (minutes), cookTime (minutes), servings, difficulty (easy/medium/hard), category, tags (array). Return ONLY valid JSON.",
           },
           { role: "user", content: effectiveText },
         ],
