@@ -1,6 +1,6 @@
 export type Difficulty = "easy" | "medium" | "hard";
 export type MealType = "breakfast" | "lunch" | "dinner" | "dessert" | "appetizer" | "snack";
-export type ImportStatus = "pending" | "processing" | "completed" | "failed";
+export type ImportStatus = "pending" | "processing" | "completed" | "failed" | "skipped";
 export type MemoryType = "story" | "voice" | "photo" | "video" | "note" | "comment";
 
 export interface Ingredient {

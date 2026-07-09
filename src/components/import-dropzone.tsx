@@ -439,9 +439,11 @@ export function ImportDropzone() {
                         ? "Extracting recipe with AI..."
                         : item.status === "completed"
                           ? "Added to your cookbook"
-                          : item.status === "failed"
-                            ? item.error || "Import failed"
-                            : `${(item.fileSize / 1024).toFixed(1)} KB`}
+                          : item.status === "skipped"
+                            ? item.error || "No usable recipe found"
+                            : item.status === "failed"
+                              ? item.error || "Import failed"
+                              : `${(item.fileSize / 1024).toFixed(1)} KB`}
                     </p>
                   </div>
                   {item.status === "processing" && (
@@ -459,6 +461,9 @@ export function ImportDropzone() {
                   )}
                   {item.status === "failed" && (
                     <AlertCircle className="h-5 w-5 text-terracotta" />
+                  )}
+                  {item.status === "skipped" && (
+                    <AlertCircle className="h-5 w-5 text-charcoal-muted" />
                   )}
                 </div>
               ))}
