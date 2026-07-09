@@ -110,7 +110,7 @@ export default function CookingModePage({
               {instruction.text}
             </p>
 
-            {(instruction.timerMinutes ?? 0) > 0 && (
+            {instruction.timerMinutes != null && instruction.timerMinutes > 0 && (
               <TimerButton
                 minutes={instruction.timerMinutes}
                 isActive={hasActiveTimer}
