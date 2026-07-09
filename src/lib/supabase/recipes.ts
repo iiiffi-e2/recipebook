@@ -427,6 +427,50 @@ export async function saveRecipe(
   return saved;
 }
 
+export async function appendRecipeOriginals(
+  supabase: SupabaseClient,
+  params: {
+    familyId: string;
+    recipeId: string;
+    files: File[];
+  }
+): Promise<void> {
+  const { familyId, recipeId, files } = params;
+  if (files.length === 0) return;
+
+  const { data: existing, error: lookupError } = await supabase
+    .from("recipes")
+    .select("id")
+    .eq("id", recipeId)
+    .eq("family_id", familyId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!existing) throw new Error("Recipe not found");
+
+  for (let index = 0; index < files.length; index += 1) {
+    const current = files[index];
+    const safeName = current.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `${familyId}/${recipeId}/${Date.now()}-note-${index}-${safeName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(RECIPE_UPLOADS_BUCKET)
+      .upload(storagePath, current, {
+        contentType: current.type || "application/octet-stream",
+        upsert: false,
+      });
+    if (uploadError) throw uploadError;
+
+    const { error: originalError } = await supabase.from("recipe_originals").insert({
+      recipe_id: recipeId,
+      type: inferOriginalType(current.type),
+      storage_path: storagePath,
+      file_name: current.name,
+      file_size: current.size,
+    });
+    if (originalError) throw originalError;
+  }
+}
+
 export function recipeToSaveInput(recipe: Recipe): SaveRecipeInput {
   return {
     title: recipe.title,
