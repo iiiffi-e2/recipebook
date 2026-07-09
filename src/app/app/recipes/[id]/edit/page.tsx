@@ -8,6 +8,14 @@ import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useRecipe, useCollections, useRecipesContext } from "@/lib/recipes";
 import type { Collection, Ingredient, Instruction, Recipe } from "@/lib/types";
 
@@ -35,6 +43,8 @@ function EditRecipeForm({
   );
   const [selectedCollections, setSelectedCollections] = useState(() => [...recipe.collections]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function updateIngredient(index: number, field: keyof Ingredient, value: string) {
@@ -130,6 +140,32 @@ function EditRecipeForm({
       setError(err instanceof Error ? err.message : "Failed to save recipe");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/recipes/${recipe.id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error ?? "Failed to delete");
+      }
+
+      setDeleteDialogOpen(false);
+      await refreshRecipes();
+      await refreshCollections();
+      router.push("/app");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete recipe");
+      setDeleteDialogOpen(false);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -293,16 +329,63 @@ function EditRecipeForm({
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="flex gap-3">
-          <Button type="submit" size="lg" disabled={saving}>
+          <Button type="submit" size="lg" disabled={saving || deleting}>
             {saving ? "Saving..." : "Save Changes"}
           </Button>
           <Link href={`/app/recipes/${recipe.id}`}>
-            <Button type="button" variant="outline" size="lg">
+            <Button type="button" variant="outline" size="lg" disabled={deleting}>
               Cancel
             </Button>
           </Link>
         </div>
       </form>
+
+      <div className="mt-12 border-t border-warm-gray/60 pt-8">
+        <p className="mb-3 text-sm text-charcoal-muted">
+          Need to remove this recipe from your cookbook?
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          className="text-charcoal-muted hover:text-red-700"
+          onClick={() => setDeleteDialogOpen(true)}
+          disabled={saving || deleting}
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete recipe
+        </Button>
+      </div>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this recipe?</DialogTitle>
+            <DialogDescription>
+              This will permanently remove <span className="text-charcoal">{recipe.title}</span>{" "}
+              from your cookbook. This can&apos;t be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteDialogOpen(false)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-200 text-red-700 hover:bg-red-50"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete recipe"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
