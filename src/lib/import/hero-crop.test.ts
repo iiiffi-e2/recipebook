@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { findPhotoRegionFromImageData, type CropBox } from "./hero-crop";
+import {
+  findPhotoRegionFromImageData,
+  scoreWholeImageFromImageData,
+  PHOTO_SCORE_THRESHOLD,
+  type CropBox,
+} from "./hero-crop";
 
 function makeImageData(width: number, height: number, fill: (x: number, y: number) => [number, number, number]): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -86,5 +91,18 @@ describe("findPhotoRegionFromImageData", () => {
 
   it("returns null when the only textured region is too small", () => {
     expect(findPhotoRegionFromImageData(tinySpeck())).toBeNull();
+  });
+});
+
+describe("scoreWholeImageFromImageData", () => {
+  it("scores a full-frame food photo above the photo threshold", () => {
+    expect(scoreWholeImageFromImageData(fullFramePhoto())).toBeGreaterThanOrEqual(
+      PHOTO_SCORE_THRESHOLD
+    );
+  });
+
+  it("scores a flat text-like page below the photo threshold", () => {
+    const flat = makeImageData(240, 480, () => [250, 250, 250]);
+    expect(scoreWholeImageFromImageData(flat)).toBeLessThan(PHOTO_SCORE_THRESHOLD);
   });
 });

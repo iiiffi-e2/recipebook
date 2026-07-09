@@ -198,7 +198,10 @@ export function findScoredPhotoRegionFromImageData(image: ImageData): ScoredCrop
   const aspect = w / h;
   if (aspect < MIN_ASPECT || aspect > MAX_ASPECT) return null;
 
-  return { x, y, width: w, height: h, score };
+  // Prefer larger photo regions so a small inset on a text screenshot loses
+  // to a bigger food photo block when both clear the threshold.
+  const areaWeighted = score * (0.4 + 0.6 * areaRatio);
+  return { x, y, width: w, height: h, score: areaWeighted };
 }
 
 /**
@@ -266,9 +269,35 @@ export async function detectPhotoRegion(file: File): Promise<CropBox | null> {
   }
 }
 
+/** Mean photo-likeness across the whole frame (for full-bleed food photos). */
+export function scoreWholeImageFromImageData(image: ImageData): number {
+  const { data, width, height } = image;
+  if (width < 8 || height < 8) return 0;
+
+  const cols = GRID_SIZE;
+  const rows = GRID_SIZE;
+  const cellW = width / cols;
+  const cellH = height / rows;
+  let sum = 0;
+  let count = 0;
+
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      const x0 = Math.floor(c * cellW);
+      const y0 = Math.floor(r * cellH);
+      const x1 = Math.min(width, Math.floor((c + 1) * cellW));
+      const y1 = Math.min(height, Math.floor((r + 1) * cellH));
+      sum += cellScore(data, width, height, x0, y0, x1, y1);
+      count += 1;
+    }
+  }
+
+  return count > 0 ? sum / count : 0;
+}
+
 export async function scorePhotoRegion(
   file: File
-): Promise<{ box: CropBox; score: number } | null> {
+): Promise<{ box: CropBox; score: number; fullFrame?: boolean } | null> {
   try {
     const decoded = await decodeToAnalysisCanvas(file);
     if (!decoded) return null;
@@ -279,16 +308,26 @@ export async function scorePhotoRegion(
 
     const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const scored = findScoredPhotoRegionFromImageData(image);
-    if (!scored) return null;
+    if (scored) {
+      const box = scaleBox(
+        scored,
+        fullWidth / canvas.width,
+        fullHeight / canvas.height,
+        fullWidth,
+        fullHeight
+      );
+      return { box, score: scored.score, fullFrame: false };
+    }
 
-    const box = scaleBox(
-      scored,
-      fullWidth / canvas.width,
-      fullHeight / canvas.height,
-      fullWidth,
-      fullHeight
-    );
-    return { box, score: scored.score };
+    // No croppable sub-region — still score full-frame food photos so they
+    // can win best-of-group hero selection against text screenshots.
+    const wholeScore = scoreWholeImageFromImageData(image);
+    if (wholeScore < PHOTO_SCORE_THRESHOLD) return null;
+    return {
+      box: { x: 0, y: 0, width: fullWidth, height: fullHeight },
+      score: wholeScore,
+      fullFrame: true,
+    };
   } catch {
     return null;
   }
@@ -345,12 +384,26 @@ export async function pickBestHeroFromFiles(
   files: File[]
 ): Promise<{ file: File; blob: Blob; score: number } | null> {
   const imageFiles = files.filter((f) => f.type.startsWith("image/"));
-  const scored: Array<{ index: number; score: number; file: File; box: CropBox }> = [];
+  const scored: Array<{
+    index: number;
+    score: number;
+    file: File;
+    box: CropBox;
+    fullFrame: boolean;
+  }> = [];
 
   for (let index = 0; index < imageFiles.length; index += 1) {
     const file = imageFiles[index];
     const result = await scorePhotoRegion(file);
-    if (result) scored.push({ index, score: result.score, file, box: result.box });
+    if (result) {
+      scored.push({
+        index,
+        score: result.score,
+        file,
+        box: result.box,
+        fullFrame: result.fullFrame === true,
+      });
+    }
   }
 
   const best = pickBestHeroCandidate(
@@ -362,7 +415,9 @@ export async function pickBestHeroFromFiles(
   const winner = scored.find((s) => s.index === best.index);
   if (!winner) return null;
 
-  const blob = await cropHeroImage(winner.file, winner.box);
+  const blob = winner.fullFrame
+    ? winner.file
+    : await cropHeroImage(winner.file, winner.box);
   if (!blob) return null;
   return { file: winner.file, blob, score: winner.score };
 }

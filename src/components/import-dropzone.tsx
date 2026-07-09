@@ -21,6 +21,7 @@ import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore } from "@/lib/store";
 import { normalizeExtractedRecipe } from "@/lib/import-recipe";
 import { pickBestHeroFromFiles } from "@/lib/import/hero-crop";
+import { resizeFilesForIngest } from "@/lib/import/ingest-resize";
 import { isUsableRecipe } from "@/lib/import/usable-recipe";
 import {
   findNearestCompletedRecipe,
@@ -49,8 +50,10 @@ async function ingestGroup(files: File[]) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), INGEST_TIMEOUT_MS);
   try {
+    // Downscale for the AI call only — full-res files are still saved as originals.
+    const ingestFiles = await resizeFilesForIngest(files);
     const formData = new FormData();
-    for (const file of files) formData.append("file", file);
+    for (const file of ingestFiles) formData.append("file", file);
 
     const response = await fetch("/api/ingest", {
       method: "POST",
@@ -58,7 +61,14 @@ async function ingestGroup(files: File[]) {
       signal: controller.signal,
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.error || "Import failed");
+    if (!response.ok) {
+      if (response.status === 413) {
+        throw new Error(
+          "Images were too large to process. Try fewer screenshots, or smaller photos."
+        );
+      }
+      throw new Error(data?.error || "Import failed");
+    }
 
     return data as {
       success?: boolean;
