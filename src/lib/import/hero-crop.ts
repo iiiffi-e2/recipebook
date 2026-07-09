@@ -104,13 +104,11 @@ function largestConnectedRegion(
       let r1 = r;
       let c0 = c;
       let c1 = c;
-      let size = 0;
       const stack: Array<[number, number]> = [[r, c]];
       visited[r][c] = true;
 
       while (stack.length > 0) {
         const [cr, cc] = stack.pop()!;
-        size += 1;
         r0 = Math.min(r0, cr);
         r1 = Math.max(r1, cr);
         c0 = Math.min(c0, cc);
