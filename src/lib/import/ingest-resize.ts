@@ -3,8 +3,8 @@ export const INGEST_MAX_DIM = 1600;
 export const INGEST_JPEG_QUALITY = 0.72;
 
 /**
- * Downscale an image for AI extraction. Originals are still uploaded separately
- * at full resolution when saving the recipe.
+ * Downscale an image for AI extraction. Storage uploads are compressed
+ * separately via resizeImageForStorage.
  */
 export async function resizeImageForIngest(file: File): Promise<File> {
   if (!file.type.startsWith("image/")) return file;

@@ -29,6 +29,7 @@ import {
 } from "@/lib/import/attach-nearest";
 import { recipeToSaveInput } from "@/lib/supabase/recipes";
 import { uploadRecipeFilesDirect } from "@/lib/import/direct-upload";
+import { formatUploadError } from "@/lib/import/upload-reliability";
 import { createThumbnail } from "@/lib/import/thumbnail";
 import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
 import { applyConfidenceGate } from "@/lib/import/grouping";
@@ -299,9 +300,7 @@ export function ImportDropzone() {
           error:
             error instanceof Error && error.name === "AbortError"
               ? "Import timed out. Try fewer/smaller images."
-              : error instanceof Error
-                ? error.message
-                : "Import failed",
+              : formatUploadError(error),
         });
       }
 
