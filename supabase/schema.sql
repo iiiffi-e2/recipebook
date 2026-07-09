@@ -160,7 +160,7 @@ CREATE TABLE imports (
   file_size INTEGER,
   storage_path TEXT,
   status import_status DEFAULT 'pending',
-  recipe_id UUID REFERENCES recipes(id),
+  recipe_id UUID REFERENCES recipes(id) ON DELETE SET NULL,
   error TEXT,
   uploaded_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -221,7 +221,7 @@ CREATE TABLE activity (
   type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
-  recipe_id UUID REFERENCES recipes(id),
+  recipe_id UUID REFERENCES recipes(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -578,3 +578,7 @@ CREATE POLICY "Members can insert activity"
     family_id IN (SELECT public.user_family_ids())
     AND user_id = auth.uid()
   );
+
+CREATE POLICY "Editors can delete activity"
+  ON activity FOR DELETE
+  USING (family_id IN (SELECT public.user_editor_family_ids()));

@@ -639,8 +639,17 @@ export async function deleteRecipe(
 ): Promise<void> {
   const { familyId, recipeId } = params;
 
-  await supabase.from("imports").update({ recipe_id: null }).eq("recipe_id", recipeId);
-  await supabase.from("activity").update({ recipe_id: null }).eq("recipe_id", recipeId);
+  const { error: activityError } = await supabase
+    .from("activity")
+    .delete()
+    .eq("recipe_id", recipeId);
+  if (activityError) throw activityError;
+
+  const { error: importsError } = await supabase
+    .from("imports")
+    .update({ recipe_id: null })
+    .eq("recipe_id", recipeId);
+  if (importsError) throw importsError;
 
   const { error } = await supabase
     .from("recipes")
