@@ -148,7 +148,7 @@ export function Sidebar() {
 
         <div className="border-t border-warm-gray/60 p-4">
           <Link
-            href="/"
+            href="/app"
             onClick={closeDrawer}
             className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm text-charcoal-muted transition-colors hover:bg-cream hover:text-charcoal"
           >
