@@ -141,7 +141,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (openaiKey && text) {
+    const firstTextFile = files.find(
+      (f) => !f.type.startsWith("image/") && f.type !== "application/pdf"
+    );
+    const effectiveText = text ?? (firstTextFile ? await firstTextFile.text() : null);
+
+    if (openaiKey && effectiveText) {
       const data = await callOpenAI({
         model: "gpt-4o",
         messages: [
@@ -150,7 +155,7 @@ export async function POST(request: NextRequest) {
             content:
               "Extract recipe information and return JSON with: title, ingredients, instructions, prepTime, cookTime, servings, difficulty, category, tags. Return ONLY valid JSON.",
           },
-          { role: "user", content: text },
+          { role: "user", content: effectiveText },
         ],
         max_tokens: 2000,
         temperature: 0.3,
@@ -167,7 +172,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const recipe = buildFallbackRecipe(file, text);
+    const recipe = buildFallbackRecipe(file, effectiveText ?? text);
 
     return NextResponse.json({
       success: true,
