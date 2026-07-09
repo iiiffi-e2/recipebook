@@ -78,7 +78,10 @@ async function groupChunk(images: GroupImageInput[]): Promise<RecipeGroup[] | nu
       text:
         "These images may be photos/screenshots of recipes. Some images are multiple " +
         "pages/screenshots of the SAME recipe (e.g. ingredients on one, steps on another, " +
-        "or front/back of a card). Group them. Return ONLY JSON: " +
+        "front/back of a card, OR notes/tips/nutrition that belong to that dish). " +
+        "Keep notes and side screenshots in the same group as their recipe. " +
+        "Only create a separate group when the image is a distinct recipe or clearly unrelated. " +
+        "Return ONLY JSON: " +
         '{"groups":[{"imageIds":["id1","id2"],"confidence":0.0}]}. ' +
         "confidence is 0..1 that the grouping is correct. Every id must appear exactly once. " +
         "Order imageIds within a group by page order. Ids: " +
