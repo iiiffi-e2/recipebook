@@ -50,7 +50,7 @@ export async function POST(request: Request) {
     const family = await ensureUserFamily(supabase, user.id);
     const contentType = request.headers.get("content-type") ?? "";
     let recipeInput: SaveRecipeInput;
-    let file: File | null = null;
+    let files: File[] = [];
     let fileName: string | undefined;
 
     if (contentType.includes("multipart/form-data")) {
@@ -62,8 +62,8 @@ export async function POST(request: Request) {
       }
 
       recipeInput = JSON.parse(recipeJson) as SaveRecipeInput;
-      file = (formData.get("file") as File | null) ?? null;
-      fileName = (formData.get("fileName") as string | null) ?? file?.name;
+      files = formData.getAll("file").filter((v): v is File => v instanceof File);
+      fileName = (formData.get("fileName") as string | null) ?? files[0]?.name;
     } else {
       recipeInput = (await request.json()) as SaveRecipeInput;
     }
@@ -76,7 +76,7 @@ export async function POST(request: Request) {
       familyId: family.familyId,
       userId: user.id,
       recipe: recipeInput,
-      file,
+      files,
       fileName,
     });
 

@@ -69,12 +69,19 @@ function inferMealTypes(category?: string, tags: string[] = []): MealType[] {
 export function normalizeExtractedRecipe(
   raw: ExtractedRecipe,
   recipeId: string,
-  options?: { previewUrl?: string; fileName?: string }
+  options?: { previewUrl?: string; previewUrls?: string[]; fileName?: string }
 ): Recipe {
   const now = new Date().toISOString();
   const fallbackTitle =
     options?.fileName?.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ").trim() ||
     "Imported Recipe";
+
+  const previews =
+    options?.previewUrls && options.previewUrls.length > 0
+      ? options.previewUrls
+      : options?.previewUrl
+        ? [options.previewUrl]
+        : [];
 
   const ingredients = (raw.ingredients ?? []).map((ingredient, index) => ({
     id: String(index + 1),
@@ -102,7 +109,7 @@ export function normalizeExtractedRecipe(
     };
   });
 
-  const heroImage = options?.previewUrl ?? DEFAULT_HERO;
+  const heroImage = previews[0] ?? DEFAULT_HERO;
   const category = raw.category?.trim() || "Imported";
   const tags = raw.tags ?? [];
 
@@ -111,7 +118,7 @@ export function normalizeExtractedRecipe(
     title: raw.title?.trim() || fallbackTitle,
     description: raw.description?.trim() || undefined,
     heroImage,
-    gallery: options?.previewUrl ? [options.previewUrl] : [DEFAULT_HERO],
+    gallery: previews.length > 0 ? previews : [DEFAULT_HERO],
     ingredients,
     instructions,
     prepTime: Number(raw.prepTime ?? 0),
@@ -124,16 +131,12 @@ export function normalizeExtractedRecipe(
     mealTypes: inferMealTypes(category, tags),
     cookingMethod: raw.cookingMethod ?? undefined,
     source: raw.source ?? { type: "other", name: "Imported upload" },
-    originals: options?.previewUrl
-      ? [
-          {
-            id: `orig-${recipeId}`,
-            type: "image",
-            url: options.previewUrl,
-            uploadedAt: now,
-          },
-        ]
-      : [],
+    originals: previews.map((url, index) => ({
+      id: `orig-${recipeId}-${index}`,
+      type: "image" as const,
+      url,
+      uploadedAt: now,
+    })),
     memories: [],
     comments: [],
     cookingHistory: [],

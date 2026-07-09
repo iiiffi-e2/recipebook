@@ -274,10 +274,13 @@ export async function saveRecipe(
     userId: string;
     recipe: SaveRecipeInput;
     file?: File | null;
+    files?: File[];
     fileName?: string;
+    fileNames?: string[];
   }
 ): Promise<Recipe> {
-  const { familyId, userId, recipe, file, fileName } = params;
+  const { familyId, userId, recipe, fileName, fileNames } = params;
+  const files = (params.files ?? (params.file ? [params.file] : [])).filter(Boolean) as File[];
 
   const { data: recipeRow, error: recipeError } = await supabase
     .from("recipes")
@@ -337,37 +340,36 @@ export async function saveRecipe(
     if (error) throw error;
   }
 
-  let storagePath: string | null = null;
+  let firstStoragePath: string | null = null;
 
-  if (file) {
-    const safeName = (fileName ?? file.name).replace(/[^a-zA-Z0-9._-]/g, "_");
-    storagePath = `${familyId}/${recipeId}/${Date.now()}-${safeName}`;
+  for (let index = 0; index < files.length; index += 1) {
+    const current = files[index];
+    const label = fileNames?.[index] ?? (index === 0 ? fileName : undefined) ?? current.name;
+    const safeName = label.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const storagePath = `${familyId}/${recipeId}/${Date.now()}-${index}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(RECIPE_UPLOADS_BUCKET)
-      .upload(storagePath, file, {
-        contentType: file.type || "application/octet-stream",
+      .upload(storagePath, current, {
+        contentType: current.type || "application/octet-stream",
         upsert: false,
       });
-
-    if (uploadError) {
-      throw uploadError;
-    }
+    if (uploadError) throw uploadError;
 
     const { error: originalError } = await supabase.from("recipe_originals").insert({
       recipe_id: recipeId,
-      type: inferOriginalType(file.type),
+      type: inferOriginalType(current.type),
       storage_path: storagePath,
-      file_name: fileName ?? file.name,
-      file_size: file.size,
+      file_name: label,
+      file_size: current.size,
     });
-
     if (originalError) throw originalError;
 
-    const heroUrl = resolveStorageUrl(supabase, storagePath);
-    if (heroUrl) {
-      await supabase.from("recipes").update({ hero_image: storagePath }).eq("id", recipeId);
-    }
+    if (index === 0) firstStoragePath = storagePath;
+  }
+
+  if (firstStoragePath) {
+    await supabase.from("recipes").update({ hero_image: firstStoragePath }).eq("id", recipeId);
   }
 
   await supabase.from("timeline_events").insert({
@@ -378,13 +380,14 @@ export async function saveRecipe(
     author_id: userId,
   });
 
+  const primaryFile = files[0] ?? null;
   await supabase.from("imports").insert({
     family_id: familyId,
     uploaded_by: userId,
-    file_name: fileName ?? file?.name ?? recipe.title,
-    file_type: file?.type ?? null,
-    file_size: file?.size ?? null,
-    storage_path: storagePath,
+    file_name: fileName ?? primaryFile?.name ?? recipe.title,
+    file_type: primaryFile?.type ?? null,
+    file_size: primaryFile?.size ?? null,
+    storage_path: firstStoragePath,
     status: "completed",
     recipe_id: recipeId,
   });
