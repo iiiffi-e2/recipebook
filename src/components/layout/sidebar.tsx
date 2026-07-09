@@ -68,7 +68,7 @@ export function Sidebar() {
     <>
       {/* Mobile top bar */}
       <header className="fixed inset-x-0 top-0 z-40 flex h-16 items-center justify-between border-b border-warm-gray/60 bg-ivory/90 px-4 backdrop-blur-sm lg:hidden">
-        <Link href="/" className="flex items-center gap-2">
+        <Link href="/app" className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sage/20">
             <ChefHat className="h-5 w-5 text-sage" />
           </div>
@@ -101,7 +101,7 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-16 items-center justify-between px-6 lg:h-20">
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/app" className="flex items-center gap-3 group">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sage/20">
               <ChefHat className="h-5 w-5 text-sage" />
             </div>

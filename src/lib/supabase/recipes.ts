@@ -141,7 +141,10 @@ function mapDbRecipeToApp(
       id: item.id,
       step: item.step,
       text: item.text,
-      timerMinutes: item.timer_minutes ?? undefined,
+      timerMinutes:
+        item.timer_minutes != null && item.timer_minutes > 0
+          ? item.timer_minutes
+          : undefined,
     }));
 
   const originals: RecipeOriginal[] = (row.recipe_originals ?? []).map((item) => ({

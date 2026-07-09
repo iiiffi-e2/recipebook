@@ -221,7 +221,7 @@ export default function RecipePage({
                         </span>
                         <div className="flex-1">
                           <p className="leading-relaxed">{instruction.text}</p>
-                          {instruction.timerMinutes && (
+                          {(instruction.timerMinutes ?? 0) > 0 && (
                             <Button
                               variant={hasActiveTimer ? "default" : "outline"}
                               size="sm"

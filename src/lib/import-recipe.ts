@@ -105,7 +105,9 @@ export function normalizeExtractedRecipe(
       step: instruction.step ?? index + 1,
       text: String(instruction.text ?? instruction.instruction ?? ""),
       timerMinutes:
-        instruction.timerMinutes != null ? Number(instruction.timerMinutes) : undefined,
+        instruction.timerMinutes != null && Number(instruction.timerMinutes) > 0
+          ? Number(instruction.timerMinutes)
+          : undefined,
     };
   });
 
