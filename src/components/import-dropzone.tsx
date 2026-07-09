@@ -65,6 +65,24 @@ async function ingestGroup(files: File[]) {
   }
 }
 
+function buildQueueItems(groups: RecipeGroup[], images: ImportImageMeta[]): ImportItem[] {
+  return groups.map((g) => {
+    const first = images.find((i) => i.id === g.imageIds[0]);
+    return {
+      id: g.imageIds[0],
+      fileName:
+        g.imageIds.length > 1
+          ? `${first?.fileName ?? "recipe"} (+${g.imageIds.length - 1})`
+          : first?.fileName ?? "recipe",
+      fileType: first?.fileType ?? "",
+      fileSize: first?.fileSize ?? 0,
+      previewUrl: first?.previewUrl,
+      status: "pending" as const,
+      uploadedAt: new Date().toISOString(),
+    };
+  });
+}
+
 export function ImportDropzone() {
   const {
     importQueue,
@@ -201,26 +219,10 @@ export function ImportDropzone() {
         groups = [...groups, ...gated];
       }
 
-      const queueItems: ImportItem[] = groups.map((g) => {
-        const first = images.find((i) => i.id === g.imageIds[0]);
-        return {
-          id: g.imageIds[0],
-          fileName:
-            g.imageIds.length > 1
-              ? `${first?.fileName ?? "recipe"} (+${g.imageIds.length - 1})`
-              : first?.fileName ?? "recipe",
-          fileType: first?.fileType ?? "",
-          fileSize: first?.fileSize ?? 0,
-          previewUrl: first?.previewUrl,
-          status: "pending" as const,
-          uploadedAt: new Date().toISOString(),
-        };
-      });
-      addToImportQueue(queueItems);
-
       const confident = groups.filter((g) => !g.needsReview);
       const uncertain = groups.filter((g) => g.needsReview);
 
+      addToImportQueue(buildQueueItems(confident, images));
       await processConfirmedGroups(confident, images);
 
       if (uncertain.length > 0) {
@@ -234,8 +236,9 @@ export function ImportDropzone() {
     const groups = reviewGroups;
     const images = reviewImages;
     clearReview();
+    addToImportQueue(buildQueueItems(groups, images));
     await processConfirmedGroups(groups, images);
-  }, [reviewGroups, reviewImages, clearReview, processConfirmedGroups]);
+  }, [reviewGroups, reviewImages, clearReview, addToImportQueue, processConfirmedGroups]);
 
   const onDrop = useCallback(
     (acceptedFiles: File[]) => {
