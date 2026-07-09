@@ -28,6 +28,7 @@ import {
   type CompletedBatchRecipe,
 } from "@/lib/import/attach-nearest";
 import { recipeToSaveInput } from "@/lib/supabase/recipes";
+import { uploadRecipeFilesDirect } from "@/lib/import/direct-upload";
 import { createThumbnail } from "@/lib/import/thumbnail";
 import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
 import { applyConfidenceGate } from "@/lib/import/grouping";
@@ -110,7 +111,7 @@ export function ImportDropzone() {
     setReview,
     clearReview,
   } = useAppStore();
-  const { usingDatabase, refreshRecipes } = useRecipesContext();
+  const { usingDatabase, refreshRecipes, family } = useRecipesContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const fileMapRef = useRef<Map<string, File>>(new Map());
   const batchCompletedRef = useRef<CompletedBatchRecipe[]>([]);
@@ -179,11 +180,18 @@ export function ImportDropzone() {
           });
 
           if (nearest && usingDatabase) {
-            const formData = new FormData();
-            for (const file of files) formData.append("file", file);
+            if (!family?.familyId) {
+              throw new Error("No family available for upload");
+            }
+            const { originals } = await uploadRecipeFilesDirect({
+              familyId: family.familyId,
+              recipeId: nearest.recipeId,
+              files,
+            });
             const attachResponse = await fetch(`/api/recipes/${nearest.recipeId}/originals`, {
               method: "POST",
-              body: formData,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ uploadedOriginals: originals }),
             });
             if (!attachResponse.ok) {
               throw new Error("Failed to attach notes to related recipe");
@@ -222,18 +230,31 @@ export function ImportDropzone() {
         }
 
         if (usingDatabase) {
-          const formData = new FormData();
-          formData.append("recipe", JSON.stringify(recipeToSaveInput(recipe)));
-          for (const file of files) formData.append("file", file);
-          formData.append("fileName", groupImages[0]?.fileName ?? "recipe");
-          if (heroBlob) {
-            formData.append(
-              "heroFile",
-              new File([heroBlob], "hero.jpg", { type: heroBlob.type || "image/jpeg" })
-            );
+          if (!family?.familyId) {
+            throw new Error("No family available for upload");
           }
+          const recipeId = crypto.randomUUID();
+          const heroFile = heroBlob
+            ? new File([heroBlob], "hero.jpg", { type: heroBlob.type || "image/jpeg" })
+            : null;
+          const { originals, heroStoragePath } = await uploadRecipeFilesDirect({
+            familyId: family.familyId,
+            recipeId,
+            files,
+            heroFile,
+          });
 
-          const persistResponse = await fetch("/api/recipes", { method: "POST", body: formData });
+          const persistResponse = await fetch("/api/recipes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...recipeToSaveInput(recipe),
+              recipeId,
+              fileName: groupImages[0]?.fileName ?? "recipe",
+              uploadedOriginals: originals,
+              heroStoragePath,
+            }),
+          });
           const persistData = await persistResponse.json().catch(() => null);
           if (!persistResponse.ok) {
             throw new Error(persistData?.error || "Failed to save recipe to database");
@@ -291,7 +312,7 @@ export function ImportDropzone() {
 
       await new Promise((resolve) => setTimeout(resolve, 400));
     },
-    [addImportedRecipe, refreshRecipes, updateImportItem, usingDatabase]
+    [addImportedRecipe, family?.familyId, refreshRecipes, updateImportItem, usingDatabase]
   );
 
   const retryPendingAttaches = useCallback(async () => {
@@ -313,14 +334,23 @@ export function ImportDropzone() {
       }
 
       if (usingDatabase) {
-        const formData = new FormData();
-        for (const file of item.files) formData.append("file", file);
-        const attachResponse = await fetch(`/api/recipes/${nearest.recipeId}/originals`, {
-          method: "POST",
-          body: formData,
-        });
-        if (!attachResponse.ok) continue;
-        await refreshRecipes();
+        if (!family?.familyId) continue;
+        try {
+          const { originals } = await uploadRecipeFilesDirect({
+            familyId: family.familyId,
+            recipeId: nearest.recipeId,
+            files: item.files,
+          });
+          const attachResponse = await fetch(`/api/recipes/${nearest.recipeId}/originals`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ uploadedOriginals: originals }),
+          });
+          if (!attachResponse.ok) continue;
+          await refreshRecipes();
+        } catch {
+          continue;
+        }
       }
 
       updateImportItem(item.queueId, {
@@ -330,7 +360,7 @@ export function ImportDropzone() {
         recipeTitle: nearest.title,
       });
     }
-  }, [refreshRecipes, updateImportItem, usingDatabase]);
+  }, [family?.familyId, refreshRecipes, updateImportItem, usingDatabase]);
 
   const processConfirmedGroups = useCallback(
     async (groups: RecipeGroup[], images: ImportImageMeta[]) => {

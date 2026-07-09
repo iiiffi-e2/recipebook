@@ -270,6 +270,13 @@ function inferOriginalType(fileType?: string): RecipeOriginal["type"] {
   return "document";
 }
 
+export type UploadedOriginalInput = {
+  storagePath: string;
+  fileName: string;
+  fileSize: number;
+  type: RecipeOriginal["type"];
+};
+
 export async function saveRecipe(
   supabase: SupabaseClient,
   params: {
@@ -280,14 +287,21 @@ export async function saveRecipe(
     files?: File[];
     fileName?: string;
     heroFile?: File | null;
+    /** Client-generated id so files can be uploaded before the recipe row exists. */
+    recipeId?: string;
+    /** Pre-uploaded storage objects (client uploaded directly to bypass body limits). */
+    uploadedOriginals?: UploadedOriginalInput[];
+    heroStoragePath?: string | null;
   }
 ): Promise<Recipe> {
-  const { familyId, userId, recipe, fileName, heroFile } = params;
+  const { familyId, userId, recipe, fileName, heroFile, heroStoragePath: preuploadedHero } = params;
   const files = (params.files ?? (params.file ? [params.file] : [])).filter(Boolean) as File[];
+  const uploadedOriginals = params.uploadedOriginals ?? [];
 
   const { data: recipeRow, error: recipeError } = await supabase
     .from("recipes")
     .insert({
+      ...(params.recipeId ? { id: params.recipeId } : {}),
       family_id: familyId,
       created_by: userId,
       title: recipe.title,
@@ -345,35 +359,49 @@ export async function saveRecipe(
 
   let firstStoragePath: string | null = null;
 
-  for (let index = 0; index < files.length; index += 1) {
-    const current = files[index];
-    const label = (index === 0 ? fileName : undefined) ?? current.name;
-    const safeName = label.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const storagePath = `${familyId}/${recipeId}/${Date.now()}-${index}-${safeName}`;
-
-    const { error: uploadError } = await supabase.storage
-      .from(RECIPE_UPLOADS_BUCKET)
-      .upload(storagePath, current, {
-        contentType: current.type || "application/octet-stream",
-        upsert: false,
-      });
-    if (uploadError) throw uploadError;
-
-    const { error: originalError } = await supabase.from("recipe_originals").insert({
-      recipe_id: recipeId,
-      type: inferOriginalType(current.type),
-      storage_path: storagePath,
-      file_name: label,
-      file_size: current.size,
-    });
+  if (uploadedOriginals.length > 0) {
+    const { error: originalError } = await supabase.from("recipe_originals").insert(
+      uploadedOriginals.map((item) => ({
+        recipe_id: recipeId,
+        type: item.type,
+        storage_path: item.storagePath,
+        file_name: item.fileName,
+        file_size: item.fileSize,
+      }))
+    );
     if (originalError) throw originalError;
+    firstStoragePath = uploadedOriginals[0]?.storagePath ?? null;
+  } else {
+    for (let index = 0; index < files.length; index += 1) {
+      const current = files[index];
+      const label = (index === 0 ? fileName : undefined) ?? current.name;
+      const safeName = label.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const storagePath = `${familyId}/${recipeId}/${Date.now()}-${index}-${safeName}`;
 
-    if (index === 0) firstStoragePath = storagePath;
+      const { error: uploadError } = await supabase.storage
+        .from(RECIPE_UPLOADS_BUCKET)
+        .upload(storagePath, current, {
+          contentType: current.type || "application/octet-stream",
+          upsert: false,
+        });
+      if (uploadError) throw uploadError;
+
+      const { error: originalError } = await supabase.from("recipe_originals").insert({
+        recipe_id: recipeId,
+        type: inferOriginalType(current.type),
+        storage_path: storagePath,
+        file_name: label,
+        file_size: current.size,
+      });
+      if (originalError) throw originalError;
+
+      if (index === 0) firstStoragePath = storagePath;
+    }
   }
 
-  let heroStoragePath: string | null = firstStoragePath;
+  let heroStoragePath: string | null = preuploadedHero ?? firstStoragePath;
 
-  if (heroFile && heroFile.size > 0) {
+  if (!preuploadedHero && heroFile && heroFile.size > 0) {
     const safeHeroName = (heroFile.name || "hero.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
     const heroPath = `${familyId}/${recipeId}/${Date.now()}-hero-${safeHeroName}`;
     const { error: heroUploadError } = await supabase.storage
@@ -399,12 +427,13 @@ export async function saveRecipe(
   });
 
   const primaryFile = files[0] ?? null;
+  const primaryUploaded = uploadedOriginals[0] ?? null;
   await supabase.from("imports").insert({
     family_id: familyId,
     uploaded_by: userId,
-    file_name: fileName ?? primaryFile?.name ?? recipe.title,
-    file_type: primaryFile?.type ?? null,
-    file_size: primaryFile?.size ?? null,
+    file_name: fileName ?? primaryFile?.name ?? primaryUploaded?.fileName ?? recipe.title,
+    file_type: primaryFile?.type ?? (primaryUploaded ? "image/*" : null),
+    file_size: primaryFile?.size ?? primaryUploaded?.fileSize ?? null,
     storage_path: firstStoragePath,
     status: "completed",
     recipe_id: recipeId,
@@ -432,11 +461,14 @@ export async function appendRecipeOriginals(
   params: {
     familyId: string;
     recipeId: string;
-    files: File[];
+    files?: File[];
+    uploadedOriginals?: UploadedOriginalInput[];
   }
 ): Promise<void> {
-  const { familyId, recipeId, files } = params;
-  if (files.length === 0) return;
+  const { familyId, recipeId } = params;
+  const files = params.files ?? [];
+  const uploadedOriginals = params.uploadedOriginals ?? [];
+  if (files.length === 0 && uploadedOriginals.length === 0) return;
 
   const { data: existing, error: lookupError } = await supabase
     .from("recipes")
@@ -446,6 +478,20 @@ export async function appendRecipeOriginals(
     .maybeSingle();
   if (lookupError) throw lookupError;
   if (!existing) throw new Error("Recipe not found");
+
+  if (uploadedOriginals.length > 0) {
+    const { error: originalError } = await supabase.from("recipe_originals").insert(
+      uploadedOriginals.map((item) => ({
+        recipe_id: recipeId,
+        type: item.type,
+        storage_path: item.storagePath,
+        file_name: item.fileName,
+        file_size: item.fileSize,
+      }))
+    );
+    if (originalError) throw originalError;
+    return;
+  }
 
   for (let index = 0; index < files.length; index += 1) {
     const current = files[index];

@@ -1,8 +1,31 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ensureUserFamily, getUserFamily } from "@/lib/supabase/family";
-import { fetchFamilyRecipes, saveRecipe, type SaveRecipeInput } from "@/lib/supabase/recipes";
+import {
+  fetchFamilyRecipes,
+  saveRecipe,
+  type SaveRecipeInput,
+  type UploadedOriginalInput,
+} from "@/lib/supabase/recipes";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+
+type SaveRecipeJsonBody = SaveRecipeInput & {
+  recipeId?: string;
+  fileName?: string;
+  uploadedOriginals?: UploadedOriginalInput[];
+  heroStoragePath?: string | null;
+};
+
+function isUploadedOriginal(value: unknown): value is UploadedOriginalInput {
+  if (!value || typeof value !== "object") return false;
+  const item = value as Record<string, unknown>;
+  return (
+    typeof item.storagePath === "string" &&
+    typeof item.fileName === "string" &&
+    typeof item.fileSize === "number" &&
+    (item.type === "image" || item.type === "pdf" || item.type === "document")
+  );
+}
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
@@ -53,6 +76,9 @@ export async function POST(request: Request) {
     let files: File[] = [];
     let fileName: string | undefined;
     let heroFile: File | undefined;
+    let recipeId: string | undefined;
+    let uploadedOriginals: UploadedOriginalInput[] | undefined;
+    let heroStoragePath: string | null | undefined;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
@@ -70,7 +96,24 @@ export async function POST(request: Request) {
         heroFile = hero;
       }
     } else {
-      recipeInput = (await request.json()) as SaveRecipeInput;
+      const body = (await request.json()) as SaveRecipeJsonBody;
+      const {
+        recipeId: bodyRecipeId,
+        fileName: bodyFileName,
+        uploadedOriginals: bodyOriginals,
+        heroStoragePath: bodyHeroPath,
+        ...rest
+      } = body;
+
+      recipeInput = rest;
+      recipeId = typeof bodyRecipeId === "string" ? bodyRecipeId : undefined;
+      fileName = typeof bodyFileName === "string" ? bodyFileName : undefined;
+      heroStoragePath = typeof bodyHeroPath === "string" ? bodyHeroPath : bodyHeroPath === null ? null : undefined;
+      if (Array.isArray(bodyOriginals) && bodyOriginals.every(isUploadedOriginal)) {
+        uploadedOriginals = bodyOriginals;
+      } else if (bodyOriginals != null) {
+        return NextResponse.json({ error: "Invalid uploadedOriginals" }, { status: 400 });
+      }
     }
 
     if (!recipeInput.title?.trim()) {
@@ -84,6 +127,9 @@ export async function POST(request: Request) {
       files,
       fileName,
       heroFile,
+      recipeId,
+      uploadedOriginals,
+      heroStoragePath,
     });
 
     return NextResponse.json({ recipe });
