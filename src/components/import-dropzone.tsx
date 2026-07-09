@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore } from "@/lib/store";
 import { normalizeExtractedRecipe } from "@/lib/import-recipe";
+import { extractHeroFromUpload } from "@/lib/import/hero-crop";
 import { recipeToSaveInput } from "@/lib/supabase/recipes";
 import { createThumbnail } from "@/lib/import/thumbnail";
 import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
@@ -128,8 +129,21 @@ export function ImportDropzone() {
         const previewUrls = groupImages
           .map((img) => img.previewUrl)
           .filter((url): url is string => Boolean(url));
+
+        let heroBlob: Blob | null = null;
+        let heroImageUrl: string | undefined;
+        const firstImage = files.find((f) => f.type.startsWith("image/"));
+        if (firstImage) {
+          heroBlob = await extractHeroFromUpload(firstImage);
+          if (heroBlob) {
+            heroImageUrl = URL.createObjectURL(heroBlob);
+            objectUrlsRef.current.add(heroImageUrl);
+          }
+        }
+
         const recipe = normalizeExtractedRecipe(data.recipe ?? {}, recipeId, {
           previewUrls,
+          heroImageUrl,
           fileName: groupImages[0]?.fileName,
         });
 
@@ -138,11 +152,22 @@ export function ImportDropzone() {
           formData.append("recipe", JSON.stringify(recipeToSaveInput(recipe)));
           for (const file of files) formData.append("file", file);
           formData.append("fileName", groupImages[0]?.fileName ?? "recipe");
+          if (heroBlob) {
+            formData.append(
+              "heroFile",
+              new File([heroBlob], "hero.jpg", { type: heroBlob.type || "image/jpeg" })
+            );
+          }
 
           const persistResponse = await fetch("/api/recipes", { method: "POST", body: formData });
           const persistData = await persistResponse.json().catch(() => null);
           if (!persistResponse.ok) {
             throw new Error(persistData?.error || "Failed to save recipe to database");
+          }
+          // Crop URL was only for optimistic local display; DB has its own path.
+          if (heroImageUrl) {
+            URL.revokeObjectURL(heroImageUrl);
+            objectUrlsRef.current.delete(heroImageUrl);
           }
           await refreshRecipes();
           updateImportItem(queueId, {
@@ -152,8 +177,9 @@ export function ImportDropzone() {
           });
         } else {
           addImportedRecipe(recipe);
-          // These previews now back a stored recipe; don't revoke them.
+          // These previews (and optional crop) now back a stored recipe; don't revoke them.
           previewUrls.forEach((url) => objectUrlsRef.current.delete(url));
+          if (heroImageUrl) objectUrlsRef.current.delete(heroImageUrl);
           updateImportItem(queueId, {
             status: "completed",
             recipeId: recipe.id,

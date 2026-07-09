@@ -279,9 +279,10 @@ export async function saveRecipe(
     file?: File | null;
     files?: File[];
     fileName?: string;
+    heroFile?: File | null;
   }
 ): Promise<Recipe> {
-  const { familyId, userId, recipe, fileName } = params;
+  const { familyId, userId, recipe, fileName, heroFile } = params;
   const files = (params.files ?? (params.file ? [params.file] : [])).filter(Boolean) as File[];
 
   const { data: recipeRow, error: recipeError } = await supabase
@@ -370,8 +371,23 @@ export async function saveRecipe(
     if (index === 0) firstStoragePath = storagePath;
   }
 
-  if (firstStoragePath) {
-    await supabase.from("recipes").update({ hero_image: firstStoragePath }).eq("id", recipeId);
+  let heroStoragePath: string | null = firstStoragePath;
+
+  if (heroFile && heroFile.size > 0) {
+    const safeHeroName = (heroFile.name || "hero.jpg").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const heroPath = `${familyId}/${recipeId}/${Date.now()}-hero-${safeHeroName}`;
+    const { error: heroUploadError } = await supabase.storage
+      .from(RECIPE_UPLOADS_BUCKET)
+      .upload(heroPath, heroFile, {
+        contentType: heroFile.type || "image/jpeg",
+        upsert: false,
+      });
+    if (heroUploadError) throw heroUploadError;
+    heroStoragePath = heroPath;
+  }
+
+  if (heroStoragePath) {
+    await supabase.from("recipes").update({ hero_image: heroStoragePath }).eq("id", recipeId);
   }
 
   await supabase.from("timeline_events").insert({

@@ -69,7 +69,12 @@ function inferMealTypes(category?: string, tags: string[] = []): MealType[] {
 export function normalizeExtractedRecipe(
   raw: ExtractedRecipe,
   recipeId: string,
-  options?: { previewUrl?: string; previewUrls?: string[]; fileName?: string }
+  options?: {
+    previewUrl?: string;
+    previewUrls?: string[];
+    heroImageUrl?: string;
+    fileName?: string;
+  }
 ): Recipe {
   const now = new Date().toISOString();
   const fallbackTitle =
@@ -111,7 +116,7 @@ export function normalizeExtractedRecipe(
     };
   });
 
-  const heroImage = previews[0] ?? DEFAULT_HERO;
+  const heroImage = options?.heroImageUrl || previews[0] || DEFAULT_HERO;
   const category = raw.category?.trim() || "Imported";
   const tags = raw.tags ?? [];
 

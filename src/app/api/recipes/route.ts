@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     let recipeInput: SaveRecipeInput;
     let files: File[] = [];
     let fileName: string | undefined;
+    let heroFile: File | undefined;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await request.formData();
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
       recipeInput = JSON.parse(recipeJson) as SaveRecipeInput;
       files = formData.getAll("file").filter((v): v is File => v instanceof File);
       fileName = (formData.get("fileName") as string | null) ?? files[0]?.name;
+      const hero = formData.get("heroFile");
+      if (hero instanceof File && hero.size > 0) {
+        heroFile = hero;
+      }
     } else {
       recipeInput = (await request.json()) as SaveRecipeInput;
     }
@@ -78,6 +83,7 @@ export async function POST(request: Request) {
       recipe: recipeInput,
       files,
       fileName,
+      heroFile,
     });
 
     return NextResponse.json({ recipe });
