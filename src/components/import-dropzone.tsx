@@ -34,6 +34,15 @@ import { createThumbnail } from "@/lib/import/thumbnail";
 import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
 import { applyConfidenceGate } from "@/lib/import/grouping";
 import { ImportReview } from "@/components/import/import-review";
+import { ImportPreparingPanel } from "@/components/import/import-preparing-panel";
+import {
+  appendPrepItem,
+  beginGrouping,
+  clearPrepState,
+  createPrepError,
+  createPrepState,
+  type PrepState,
+} from "@/lib/import/prep-progress";
 import type { ImportImageMeta, RecipeGroup } from "@/lib/import/types";
 import type { ImportItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -125,6 +134,8 @@ export function ImportDropzone() {
     }>
   >([]);
   const objectUrlsRef = useRef<Set<string>>(new Set());
+  const [prep, setPrep] = useState<PrepState>(() => clearPrepState());
+  const isPreparing = prep.phase === "preparing" || prep.phase === "grouping";
 
   // Revoke any object URLs still outstanding when leaving the import view.
   // URLs adopted by a locally-stored recipe (non-DB mode) are removed from the
@@ -377,62 +388,101 @@ export function ImportDropzone() {
     async (files: File[]) => {
       batchCompletedRef.current = [];
       pendingAttachRef.current = [];
+      setPrep(createPrepState(files.length));
+
       const images: ImportImageMeta[] = [];
-      for (const file of files) {
-        const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        fileMapRef.current.set(id, file);
-        const previewUrl = file.type.startsWith("image/")
-          ? URL.createObjectURL(file)
-          : undefined;
-        if (previewUrl) objectUrlsRef.current.add(previewUrl);
-        images.push({
-          id,
-          fileName: file.name,
-          fileType: file.type,
-          fileSize: file.size,
-          captureTime: getCaptureTime(file),
-          previewUrl,
-          thumbnail: file.type.startsWith("image/") ? await createThumbnail(file) : undefined,
-        });
-      }
+      try {
+        for (const file of files) {
+          const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          fileMapRef.current.set(id, file);
+          const previewUrl = file.type.startsWith("image/")
+            ? URL.createObjectURL(file)
+            : undefined;
+          if (previewUrl) objectUrlsRef.current.add(previewUrl);
+          const meta: ImportImageMeta = {
+            id,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            captureTime: getCaptureTime(file),
+            previewUrl,
+            thumbnail: file.type.startsWith("image/")
+              ? await createThumbnail(file)
+              : undefined,
+          };
+          images.push(meta);
+          setPrep((prev) =>
+            appendPrepItem(prev, {
+              id,
+              fileName: file.name,
+              previewUrl,
+              kind: file.type.startsWith("image/") ? "image" : "file",
+            })
+          );
+        }
 
-      const imageMetas = images.filter((i) => i.fileType.startsWith("image/"));
-      const nonImageGroups: RecipeGroup[] = images
-        .filter((i) => !i.fileType.startsWith("image/"))
-        .map((i) => ({ id: `g-${i.id}`, imageIds: [i.id], confidence: 1, needsReview: false }));
+        const imageMetas = images.filter((i) => i.fileType.startsWith("image/"));
+        const nonImageGroups: RecipeGroup[] = images
+          .filter((i) => !i.fileType.startsWith("image/"))
+          .map((i) => ({
+            id: `g-${i.id}`,
+            imageIds: [i.id],
+            confidence: 1,
+            needsReview: false,
+          }));
 
-      let groups: RecipeGroup[] = [...nonImageGroups];
+        let groups: RecipeGroup[] = [...nonImageGroups];
 
-      if (imageMetas.length > 0) {
-        const provisional = preClusterByMetadata(imageMetas).map((c) => c.map((i) => i.id));
-        const response = await fetch("/api/ingest/group", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            images: imageMetas.map((i) => ({
-              id: i.id,
-              fileName: i.fileName,
-              captureTime: i.captureTime,
-              thumbnail: i.thumbnail,
-            })),
-            provisionalGroups: provisional,
-          }),
-        });
-        const data = (await response.json().catch(() => ({ groups: [] }))) as {
-          groups: RecipeGroup[];
-        };
-        const gated = applyConfidenceGate(data.groups ?? []);
-        groups = [...groups, ...gated];
-      }
+        if (imageMetas.length > 0) {
+          setPrep((prev) => beginGrouping(prev));
+          const provisional = preClusterByMetadata(imageMetas).map((c) =>
+            c.map((i) => i.id)
+          );
+          const response = await fetch("/api/ingest/group", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              images: imageMetas.map((i) => ({
+                id: i.id,
+                fileName: i.fileName,
+                captureTime: i.captureTime,
+                thumbnail: i.thumbnail,
+              })),
+              provisionalGroups: provisional,
+            }),
+          });
+          const data = (await response.json().catch(() => null)) as {
+            groups?: RecipeGroup[];
+            error?: string;
+          } | null;
+          if (!response.ok) {
+            throw new Error(data?.error || "Failed to group screenshots");
+          }
+          const gated = applyConfidenceGate(data?.groups ?? []);
+          groups = [...groups, ...gated];
+        }
 
-      const confident = groups.filter((g) => !g.needsReview);
-      const uncertain = groups.filter((g) => g.needsReview);
+        setPrep(clearPrepState());
 
-      addToImportQueue(buildQueueItems(confident, images));
-      await processConfirmedGroups(confident, images);
+        const confident = groups.filter((g) => !g.needsReview);
+        const uncertain = groups.filter((g) => g.needsReview);
 
-      if (uncertain.length > 0) {
-        setReview(images, uncertain);
+        addToImportQueue(buildQueueItems(confident, images));
+        await processConfirmedGroups(confident, images);
+
+        if (uncertain.length > 0) {
+          setReview(images, uncertain);
+        }
+      } catch (error) {
+        for (const img of images) {
+          fileMapRef.current.delete(img.id);
+        }
+        setPrep((prev) =>
+          createPrepError(
+            prev,
+            error instanceof Error ? error.message : "Failed to prepare files"
+          )
+        );
       }
     },
     [addToImportQueue, processConfirmedGroups, setReview]
@@ -459,9 +509,11 @@ export function ImportDropzone() {
     onDrop,
     accept: ACCEPTED_TYPES,
     multiple: true,
+    disabled: isPreparing || prep.phase === "error",
   });
 
   const handlePaste = async () => {
+    if (isPreparing || prep.phase === "error") return;
     try {
       const text = await navigator.clipboard.readText();
       if (text.trim()) {
@@ -486,44 +538,56 @@ export function ImportDropzone() {
 
   return (
     <div className="space-y-8">
-      <div
-        {...getRootProps()}
-        className={cn(
-          "relative cursor-pointer rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-8 text-center transition-all duration-300 sm:p-16",
-          isDragActive && "drop-zone-active border-sage bg-sage/5",
-          !isDragActive && "hover:border-sage hover:bg-ivory"
-        )}
-      >
-        <input {...getInputProps()} />
-        <motion.div
-          animate={{ scale: isDragActive ? 1.05 : 1 }}
-          transition={{ duration: 0.2 }}
+      {prep.phase === "idle" ? (
+        <div
+          {...getRootProps()}
+          className={cn(
+            "relative cursor-pointer rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-8 text-center transition-all duration-300 sm:p-16",
+            isDragActive && "drop-zone-active border-sage bg-sage/5",
+            !isDragActive && "hover:border-sage hover:bg-ivory"
+          )}
         >
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-sage/15">
-            <Upload className="h-10 w-10 text-sage" />
-          </div>
-          <h3 className="font-serif text-2xl font-medium text-charcoal">
-            {isDragActive ? "Drop your recipes here" : "Import your family recipes"}
-          </h3>
-          <p className="mx-auto mt-3 max-w-md text-charcoal-muted">
-            Drag and drop photos, screenshots, PDFs, handwritten cards, or entire folders.
-            Our AI will extract and organize everything automatically.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Button type="button">Choose Files</Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePaste();
-              }}
-            >
-              Paste Recipe
-            </Button>
-          </div>
-        </motion.div>
-      </div>
+          <input {...getInputProps()} />
+          <motion.div
+            animate={{ scale: isDragActive ? 1.05 : 1 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-sage/15">
+              <Upload className="h-10 w-10 text-sage" />
+            </div>
+            <h3 className="font-serif text-2xl font-medium text-charcoal">
+              {isDragActive ? "Drop your recipes here" : "Import your family recipes"}
+            </h3>
+            <p className="mx-auto mt-3 max-w-md text-charcoal-muted">
+              Drag and drop photos, screenshots, PDFs, handwritten cards, or entire folders.
+              Our AI will extract and organize everything automatically.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Button type="button">Choose Files</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePaste();
+                }}
+              >
+                Paste Recipe
+              </Button>
+            </div>
+          </motion.div>
+        </div>
+      ) : (
+        <ImportPreparingPanel
+          prep={prep}
+          onDismissError={() => {
+            for (const item of prep.items) {
+              fileMapRef.current.delete(item.id);
+            }
+            setPrep(clearPrepState());
+          }}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         {sourceTypes.map((source) => (
