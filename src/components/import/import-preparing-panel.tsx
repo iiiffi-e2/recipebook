@@ -30,7 +30,7 @@ export function ImportPreparingPanel({ prep, onDismissError }: ImportPreparingPa
   return (
     <div
       className={cn(
-        "relative rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-8 text-center sm:p-12"
+        "relative rounded-3xl border-2 border-dashed border-sage-muted bg-ivory/50 p-8 text-center sm:p-16"
       )}
       aria-busy={!isError}
       aria-live="polite"
