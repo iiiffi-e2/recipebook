@@ -39,3 +39,44 @@ export function numericSuffix(fileName: string): number | null {
   const match = base.match(/(\d+)$/);
   return match ? Number(match[1]) : null;
 }
+
+function adjacentSameRecipe(
+  prev: ImportImageMeta,
+  next: ImportImageMeta,
+  timeWindowMs: number
+): boolean {
+  const closeInTime = Math.abs(next.captureTime - prev.captureTime) <= timeWindowMs;
+  if (!closeInTime) return false;
+
+  const sameStem =
+    filenameStem(prev.fileName).length > 0 &&
+    filenameStem(prev.fileName) === filenameStem(next.fileName);
+
+  const prevNum = numericSuffix(prev.fileName);
+  const nextNum = numericSuffix(next.fileName);
+  const consecutive =
+    prevNum !== null && nextNum !== null && Math.abs(nextNum - prevNum) <= 1;
+
+  return sameStem || consecutive;
+}
+
+export function preClusterByMetadata(
+  items: ImportImageMeta[],
+  timeWindowMs: number = PRECLUSTER_TIME_WINDOW_MS
+): ImportImageMeta[][] {
+  const sorted = [...items].sort(
+    (a, b) => a.captureTime - b.captureTime || a.fileName.localeCompare(b.fileName)
+  );
+
+  const clusters: ImportImageMeta[][] = [];
+  for (const item of sorted) {
+    const current = clusters[clusters.length - 1];
+    const prev = current?.[current.length - 1];
+    if (current && prev && adjacentSameRecipe(prev, item, timeWindowMs)) {
+      current.push(item);
+    } else {
+      clusters.push([item]);
+    }
+  }
+  return clusters;
+}

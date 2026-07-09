@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { getCaptureTime, filenameStem, numericSuffix } from "./metadata";
+import {
+  getCaptureTime,
+  filenameStem,
+  numericSuffix,
+  preClusterByMetadata,
+} from "./metadata";
+import type { ImportImageMeta } from "./types";
 
 describe("getCaptureTime", () => {
   it("uses lastModified when present", () => {
@@ -48,5 +54,55 @@ describe("numericSuffix", () => {
   });
   it("returns null when there is no trailing number", () => {
     expect(numericSuffix("cake.png")).toBeNull();
+  });
+});
+
+function meta(partial: Partial<ImportImageMeta> & { id: string }): ImportImageMeta {
+  return {
+    fileName: `${partial.id}.jpg`,
+    fileType: "image/jpeg",
+    fileSize: 1000,
+    captureTime: 0,
+    ...partial,
+  };
+}
+
+describe("preClusterByMetadata", () => {
+  it("groups sequential filenames captured close together", () => {
+    const items = [
+      meta({ id: "a", fileName: "IMG_0412.jpg", captureTime: 1000 }),
+      meta({ id: "b", fileName: "IMG_0413.jpg", captureTime: 4000 }),
+    ];
+    const clusters = preClusterByMetadata(items);
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0].map((i) => i.id)).toEqual(["a", "b"]);
+  });
+
+  it("splits images far apart in time into separate clusters", () => {
+    const items = [
+      meta({ id: "a", fileName: "IMG_0412.jpg", captureTime: 1000 }),
+      meta({ id: "b", fileName: "IMG_0413.jpg", captureTime: 1_000_000 }),
+    ];
+    const clusters = preClusterByMetadata(items);
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("splits unrelated filenames even when close in time", () => {
+    const items = [
+      meta({ id: "a", fileName: "cake.jpg", captureTime: 1000 }),
+      meta({ id: "b", fileName: "soup.jpg", captureTime: 2000 }),
+    ];
+    const clusters = preClusterByMetadata(items);
+    expect(clusters).toHaveLength(2);
+  });
+
+  it("puts each image in its own cluster for a typical bulk drop", () => {
+    const items = [
+      meta({ id: "a", fileName: "lasagna.jpg", captureTime: 1000 }),
+      meta({ id: "b", fileName: "tacos.jpg", captureTime: 500_000 }),
+      meta({ id: "c", fileName: "pie.jpg", captureTime: 900_000 }),
+    ];
+    const clusters = preClusterByMetadata(items);
+    expect(clusters).toHaveLength(3);
   });
 });
