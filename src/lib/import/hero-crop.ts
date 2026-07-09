@@ -1,9 +1,13 @@
+import { pickBestHeroCandidate } from "./hero-pick";
+
 export type CropBox = {
   x: number;
   y: number;
   width: number;
   height: number;
 };
+
+export type ScoredCropBox = CropBox & { score: number };
 
 export const DETECT_MAX_DIM = 1024;
 export const GRID_SIZE = 24;
@@ -16,7 +20,7 @@ export const OUTPUT_TYPE = "image/jpeg";
 export const OUTPUT_QUALITY = 0.85;
 
 /** Minimum cell score (0–1) to count as photo-like. */
-const PHOTO_SCORE_THRESHOLD = 0.35;
+export const PHOTO_SCORE_THRESHOLD = 0.35;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -138,10 +142,11 @@ function largestConnectedRegion(
 }
 
 /**
- * Find the largest photo-like region in ImageData coordinates.
+ * Find the largest photo-like region in ImageData coordinates, with a score
+ * equal to the mean of cell scores inside the region bounding box.
  * Returns null when no confident sub-region exists (use full image).
  */
-export function findPhotoRegionFromImageData(image: ImageData): CropBox | null {
+export function findScoredPhotoRegionFromImageData(image: ImageData): ScoredCropBox | null {
   const { data, width, height } = image;
   if (width < 8 || height < 8) return null;
 
@@ -167,6 +172,16 @@ export function findPhotoRegionFromImageData(image: ImageData): CropBox | null {
   const region = largestConnectedRegion(mask, rows, cols);
   if (!region) return null;
 
+  let scoreSum = 0;
+  let scoreCount = 0;
+  for (let r = region.r0; r <= region.r1; r += 1) {
+    for (let c = region.c0; c <= region.c1; c += 1) {
+      scoreSum += scores[r][c];
+      scoreCount += 1;
+    }
+  }
+  const score = scoreCount > 0 ? scoreSum / scoreCount : 0;
+
   let x = Math.floor(region.c0 * cellW);
   let y = Math.floor(region.r0 * cellH);
   let w = Math.ceil((region.c1 + 1) * cellW) - x;
@@ -185,7 +200,18 @@ export function findPhotoRegionFromImageData(image: ImageData): CropBox | null {
   const aspect = w / h;
   if (aspect < MIN_ASPECT || aspect > MAX_ASPECT) return null;
 
-  return { x, y, width: w, height: h };
+  return { x, y, width: w, height: h, score };
+}
+
+/**
+ * Find the largest photo-like region in ImageData coordinates.
+ * Returns null when no confident sub-region exists (use full image).
+ */
+export function findPhotoRegionFromImageData(image: ImageData): CropBox | null {
+  const scored = findScoredPhotoRegionFromImageData(image);
+  if (!scored) return null;
+  const { x, y, width, height } = scored;
+  return { x, y, width, height };
 }
 
 function scaleBox(box: CropBox, scaleX: number, scaleY: number, maxW: number, maxH: number): CropBox {
@@ -242,6 +268,34 @@ export async function detectPhotoRegion(file: File): Promise<CropBox | null> {
   }
 }
 
+export async function scorePhotoRegion(
+  file: File
+): Promise<{ box: CropBox; score: number } | null> {
+  try {
+    const decoded = await decodeToAnalysisCanvas(file);
+    if (!decoded) return null;
+
+    const { canvas, fullWidth, fullHeight } = decoded;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const scored = findScoredPhotoRegionFromImageData(image);
+    if (!scored) return null;
+
+    const box = scaleBox(
+      scored,
+      fullWidth / canvas.width,
+      fullHeight / canvas.height,
+      fullWidth,
+      fullHeight
+    );
+    return { box, score: scored.score };
+  } catch {
+    return null;
+  }
+}
+
 export async function cropHeroImage(file: File, box: CropBox): Promise<Blob | null> {
   try {
     const bitmap = await createImageBitmap(file).catch(() => null);
@@ -287,4 +341,30 @@ export async function extractHeroFromUpload(file: File): Promise<Blob | null> {
   } catch {
     return null;
   }
+}
+
+export async function pickBestHeroFromFiles(
+  files: File[]
+): Promise<{ file: File; blob: Blob; score: number } | null> {
+  const imageFiles = files.filter((f) => f.type.startsWith("image/"));
+  const scored: Array<{ index: number; score: number; file: File; box: CropBox }> = [];
+
+  for (let index = 0; index < imageFiles.length; index += 1) {
+    const file = imageFiles[index];
+    const result = await scorePhotoRegion(file);
+    if (result) scored.push({ index, score: result.score, file, box: result.box });
+  }
+
+  const best = pickBestHeroCandidate(
+    scored.map((s) => ({ index: s.index, score: s.score })),
+    PHOTO_SCORE_THRESHOLD
+  );
+  if (!best) return null;
+
+  const winner = scored.find((s) => s.index === best.index);
+  if (!winner) return null;
+
+  const blob = await cropHeroImage(winner.file, winner.box);
+  if (!blob) return null;
+  return { file: winner.file, blob, score: winner.score };
 }
