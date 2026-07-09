@@ -391,9 +391,12 @@ export function ImportDropzone() {
       setPrep(createPrepState(files.length));
 
       const images: ImportImageMeta[] = [];
+      let groups: RecipeGroup[] = [];
+      let inProgressId: string | null = null;
       try {
         for (const file of files) {
           const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          inProgressId = id;
           fileMapRef.current.set(id, file);
           const previewUrl = file.type.startsWith("image/")
             ? URL.createObjectURL(file)
@@ -411,6 +414,7 @@ export function ImportDropzone() {
               : undefined,
           };
           images.push(meta);
+          inProgressId = null;
           setPrep((prev) =>
             appendPrepItem(prev, {
               id,
@@ -431,7 +435,7 @@ export function ImportDropzone() {
             needsReview: false,
           }));
 
-        let groups: RecipeGroup[] = [...nonImageGroups];
+        groups = [...nonImageGroups];
 
         if (imageMetas.length > 0) {
           setPrep((prev) => beginGrouping(prev));
@@ -461,21 +465,12 @@ export function ImportDropzone() {
           const gated = applyConfidenceGate(data?.groups ?? []);
           groups = [...groups, ...gated];
         }
-
-        setPrep(clearPrepState());
-
-        const confident = groups.filter((g) => !g.needsReview);
-        const uncertain = groups.filter((g) => g.needsReview);
-
-        addToImportQueue(buildQueueItems(confident, images));
-        await processConfirmedGroups(confident, images);
-
-        if (uncertain.length > 0) {
-          setReview(images, uncertain);
-        }
       } catch (error) {
         for (const img of images) {
           fileMapRef.current.delete(img.id);
+        }
+        if (inProgressId) {
+          fileMapRef.current.delete(inProgressId);
         }
         setPrep((prev) =>
           createPrepError(
@@ -483,6 +478,19 @@ export function ImportDropzone() {
             error instanceof Error ? error.message : "Failed to prepare files"
           )
         );
+        return;
+      }
+
+      setPrep(clearPrepState());
+
+      const confident = groups.filter((g) => !g.needsReview);
+      const uncertain = groups.filter((g) => g.needsReview);
+
+      addToImportQueue(buildQueueItems(confident, images));
+      await processConfirmedGroups(confident, images);
+
+      if (uncertain.length > 0) {
+        setReview(images, uncertain);
       }
     },
     [addToImportQueue, processConfirmedGroups, setReview]
