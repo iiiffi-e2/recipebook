@@ -14,7 +14,3 @@ export interface RecipeGroup {
   confidence: number;
   needsReview: boolean;
 }
-
-export interface GroupingResult {
-  groups: RecipeGroup[];
-}

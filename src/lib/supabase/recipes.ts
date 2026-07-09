@@ -276,10 +276,9 @@ export async function saveRecipe(
     file?: File | null;
     files?: File[];
     fileName?: string;
-    fileNames?: string[];
   }
 ): Promise<Recipe> {
-  const { familyId, userId, recipe, fileName, fileNames } = params;
+  const { familyId, userId, recipe, fileName } = params;
   const files = (params.files ?? (params.file ? [params.file] : [])).filter(Boolean) as File[];
 
   const { data: recipeRow, error: recipeError } = await supabase
@@ -344,7 +343,7 @@ export async function saveRecipe(
 
   for (let index = 0; index < files.length; index += 1) {
     const current = files[index];
-    const label = fileNames?.[index] ?? (index === 0 ? fileName : undefined) ?? current.name;
+    const label = (index === 0 ? fileName : undefined) ?? current.name;
     const safeName = label.replace(/[^a-zA-Z0-9._-]/g, "_");
     const storagePath = `${familyId}/${recipeId}/${Date.now()}-${index}-${safeName}`;
 
