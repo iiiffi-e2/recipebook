@@ -20,7 +20,12 @@ import { Button } from "@/components/ui/button";
 import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore } from "@/lib/store";
 import { normalizeExtractedRecipe } from "@/lib/import-recipe";
-import { extractHeroFromUpload } from "@/lib/import/hero-crop";
+import { pickBestHeroFromFiles } from "@/lib/import/hero-crop";
+import { isUsableRecipe } from "@/lib/import/usable-recipe";
+import {
+  findNearestCompletedRecipe,
+  type CompletedBatchRecipe,
+} from "@/lib/import/attach-nearest";
 import { recipeToSaveInput } from "@/lib/supabase/recipes";
 import { createThumbnail } from "@/lib/import/thumbnail";
 import { getCaptureTime, preClusterByMetadata } from "@/lib/import/metadata";
@@ -98,6 +103,15 @@ export function ImportDropzone() {
   const { usingDatabase, refreshRecipes } = useRecipesContext();
   const [isProcessing, setIsProcessing] = useState(false);
   const fileMapRef = useRef<Map<string, File>>(new Map());
+  const batchCompletedRef = useRef<CompletedBatchRecipe[]>([]);
+  const pendingAttachRef = useRef<
+    Array<{
+      queueId: string;
+      group: RecipeGroup;
+      images: ImportImageMeta[];
+      files: File[];
+    }>
+  >([]);
   const objectUrlsRef = useRef<Set<string>>(new Set());
 
   // Revoke any object URLs still outstanding when leaving the import view.
@@ -132,13 +146,11 @@ export function ImportDropzone() {
 
         let heroBlob: Blob | null = null;
         let heroImageUrl: string | undefined;
-        const firstImage = files.find((f) => f.type.startsWith("image/"));
-        if (firstImage) {
-          heroBlob = await extractHeroFromUpload(firstImage);
-          if (heroBlob) {
-            heroImageUrl = URL.createObjectURL(heroBlob);
-            objectUrlsRef.current.add(heroImageUrl);
-          }
+        const bestHero = await pickBestHeroFromFiles(files);
+        if (bestHero) {
+          heroBlob = bestHero.blob;
+          heroImageUrl = URL.createObjectURL(heroBlob);
+          objectUrlsRef.current.add(heroImageUrl);
         }
 
         const recipe = normalizeExtractedRecipe(data.recipe ?? {}, recipeId, {
@@ -146,6 +158,58 @@ export function ImportDropzone() {
           heroImageUrl,
           fileName: groupImages[0]?.fileName,
         });
+
+        if (!isUsableRecipe(data.recipe ?? {})) {
+          const captureTimes = groupImages.map((img) => img.captureTime);
+          const fileNames = groupImages.map((img) => img.fileName);
+          const nearest = findNearestCompletedRecipe({
+            captureTimes,
+            fileNames,
+            completed: batchCompletedRef.current,
+          });
+
+          if (nearest && usingDatabase) {
+            const formData = new FormData();
+            for (const file of files) formData.append("file", file);
+            const attachResponse = await fetch(`/api/recipes/${nearest.recipeId}/originals`, {
+              method: "POST",
+              body: formData,
+            });
+            if (!attachResponse.ok) {
+              throw new Error("Failed to attach notes to related recipe");
+            }
+            await refreshRecipes();
+            updateImportItem(queueId, {
+              status: "skipped",
+              error: `No usable recipe found — attached as notes to “${nearest.title}”`,
+              recipeId: nearest.recipeId,
+              recipeTitle: nearest.title,
+            });
+          } else if (nearest && !usingDatabase) {
+            updateImportItem(queueId, {
+              status: "skipped",
+              error: `No usable recipe found — related to “${nearest.title}” (notes not attached in local mode)`,
+              recipeId: nearest.recipeId,
+              recipeTitle: nearest.title,
+            });
+          } else {
+            pendingAttachRef.current.push({ queueId, group, images, files: [...files] });
+            updateImportItem(queueId, {
+              status: "skipped",
+              error: "No usable recipe found in this screenshot",
+            });
+          }
+
+          if (heroImageUrl) {
+            URL.revokeObjectURL(heroImageUrl);
+            objectUrlsRef.current.delete(heroImageUrl);
+          }
+          for (const id of group.imageIds) {
+            fileMapRef.current.delete(id);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          return;
+        }
 
         if (usingDatabase) {
           const formData = new FormData();
@@ -175,6 +239,12 @@ export function ImportDropzone() {
             recipeId: persistData.recipe.id,
             recipeTitle: persistData.recipe.title,
           });
+          batchCompletedRef.current.push({
+            recipeId: persistData.recipe.id,
+            title: persistData.recipe.title,
+            captureTimes: groupImages.map((img) => img.captureTime),
+            fileNames: groupImages.map((img) => img.fileName),
+          });
         } else {
           addImportedRecipe(recipe);
           // These previews (and optional crop) now back a stored recipe; don't revoke them.
@@ -184,6 +254,12 @@ export function ImportDropzone() {
             status: "completed",
             recipeId: recipe.id,
             recipeTitle: recipe.title,
+          });
+          batchCompletedRef.current.push({
+            recipeId: recipe.id,
+            title: recipe.title,
+            captureTimes: groupImages.map((img) => img.captureTime),
+            fileNames: groupImages.map((img) => img.fileName),
           });
         }
       } catch (error) {
@@ -221,6 +297,8 @@ export function ImportDropzone() {
 
   const processFiles = useCallback(
     async (files: File[]) => {
+      batchCompletedRef.current = [];
+      pendingAttachRef.current = [];
       const images: ImportImageMeta[] = [];
       for (const file of files) {
         const id = `img-${Date.now()}-${Math.random().toString(36).slice(2)}`;
