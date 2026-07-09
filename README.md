@@ -7,6 +7,7 @@ Heirloom is an AI-powered digital family cookbook that transforms scattered reci
 ## Features
 
 - **Import from anywhere** — Handwritten cards, screenshots, PDFs, social media, bulk folder uploads
+- **Smart multi-image grouping** — Multiple screenshots/photos of the same recipe are automatically grouped into one recipe; a review step appears when grouping is uncertain, while distinct recipes still import individually
 - **AI recipe extraction** — Automatically extracts ingredients, instructions, metadata, and cleans formatting
 - **Original preservation** — Every upload is preserved forever alongside the AI-processed version
 - **Family memories** — Stories, voice recordings, photos, and traditions attached to every recipe
