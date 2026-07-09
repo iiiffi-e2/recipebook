@@ -53,9 +53,12 @@ export function reorderImageInGroup(
 ): RecipeGroup[] {
   return groups.map((g) => {
     if (g.id !== groupId) return g;
+    const size = g.imageIds.length;
+    if (fromIndex < 0 || fromIndex >= size || toIndex < 0 || toIndex >= size) {
+      return g;
+    }
     const imageIds = [...g.imageIds];
     const [moved] = imageIds.splice(fromIndex, 1);
-    if (moved === undefined) return g;
     imageIds.splice(toIndex, 0, moved);
     return { ...g, imageIds };
   });

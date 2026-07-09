@@ -20,6 +20,26 @@ describe("mergeGroups", () => {
     expect(result[0].imageIds).toEqual(["a", "b", "c"]);
     expect(result[0].confidence).toBe(1);
   });
+
+  it("takes the minimum confidence of the two merged groups", () => {
+    const groups = [group("g1", ["a"], 0.9), group("g2", ["b"], 0.4)];
+    const result = mergeGroups(groups, "g1", "g2");
+    expect(result[0].confidence).toBe(0.4);
+  });
+
+  it("no-ops when the source id is missing", () => {
+    const groups = [group("g1", ["a"]), group("g2", ["b"])];
+    const result = mergeGroups(groups, "g1", "missing");
+    expect(result).toBe(groups);
+    expect(result).toHaveLength(2);
+  });
+
+  it("no-ops when targetId equals sourceId", () => {
+    const groups = [group("g1", ["a", "b"])];
+    const result = mergeGroups(groups, "g1", "g1");
+    expect(result).toBe(groups);
+    expect(result[0].imageIds).toEqual(["a", "b"]);
+  });
 });
 
 describe("splitImageToNewGroup", () => {
@@ -37,6 +57,14 @@ describe("splitImageToNewGroup", () => {
     expect(result).toHaveLength(1);
     expect(result[0].imageIds).toEqual(["a"]);
   });
+
+  it("no-ops when the imageId is not present in the group", () => {
+    const groups = [group("g1", ["a", "b", "c"])];
+    const result = splitImageToNewGroup(groups, "g1", "z");
+    expect(result).toBe(groups);
+    expect(result).toHaveLength(1);
+    expect(result[0].imageIds).toEqual(["a", "b", "c"]);
+  });
 });
 
 describe("reorderImageInGroup", () => {
@@ -44,6 +72,18 @@ describe("reorderImageInGroup", () => {
     const groups = [group("g1", ["a", "b", "c"])];
     const result = reorderImageInGroup(groups, "g1", 2, 0);
     expect(result[0].imageIds).toEqual(["c", "a", "b"]);
+  });
+
+  it("returns imageIds unchanged when fromIndex is out of range", () => {
+    const groups = [group("g1", ["a", "b", "c"])];
+    const result = reorderImageInGroup(groups, "g1", -1, 0);
+    expect(result[0].imageIds).toEqual(["a", "b", "c"]);
+  });
+
+  it("returns imageIds unchanged when toIndex is out of range", () => {
+    const groups = [group("g1", ["a", "b", "c"])];
+    const result = reorderImageInGroup(groups, "g1", 0, 5);
+    expect(result[0].imageIds).toEqual(["a", "b", "c"]);
   });
 });
 
