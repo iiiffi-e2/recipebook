@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
   findPhotoRegionFromImageData,
+  findScoredPhotoRegionFromImageData,
   scoreWholeImageFromImageData,
   PHOTO_SCORE_THRESHOLD,
   type CropBox,
 } from "./hero-crop";
+import { pickBestHeroCandidate } from "./hero-pick";
 
 function makeImageData(width: number, height: number, fill: (x: number, y: number) => [number, number, number]): ImageData {
   const data = new Uint8ClampedArray(width * height * 4);
@@ -94,6 +96,19 @@ describe("findPhotoRegionFromImageData", () => {
   });
 });
 
+/** Dense dark text lines on a light page — high edges, low color. */
+function textHeavyPage(): ImageData {
+  return makeImageData(240, 480, (x, y) => {
+    const onGlyph = y % 8 < 3 && x % 5 !== 0;
+    return onGlyph ? [30, 30, 30] : [250, 250, 248];
+  });
+}
+
+/** Recipe-card style: chrome + real food photo block. */
+function recipeCardWithFoodPhoto(): ImageData {
+  return screenshotWithPhotoBlock();
+}
+
 describe("scoreWholeImageFromImageData", () => {
   it("scores a full-frame food photo above the photo threshold", () => {
     expect(scoreWholeImageFromImageData(fullFramePhoto())).toBeGreaterThanOrEqual(
@@ -104,5 +119,35 @@ describe("scoreWholeImageFromImageData", () => {
   it("scores a flat text-like page below the photo threshold", () => {
     const flat = makeImageData(240, 480, () => [250, 250, 250]);
     expect(scoreWholeImageFromImageData(flat)).toBeLessThan(PHOTO_SCORE_THRESHOLD);
+  });
+
+  it("scores dense text pages below the photo threshold", () => {
+    expect(scoreWholeImageFromImageData(textHeavyPage())).toBeLessThan(PHOTO_SCORE_THRESHOLD);
+  });
+});
+
+describe("hero pick prefers food over text crops", () => {
+  it("ranks a food photo region above a text-heavy region", () => {
+    const food = findScoredPhotoRegionFromImageData(recipeCardWithFoodPhoto());
+    const textCrop = findScoredPhotoRegionFromImageData(textHeavyPage());
+    // When text fills the frame, scoring falls back to whole-image — that path
+    // previously outranked real food photos because glyph edges look "photo-like".
+    const textWhole = scoreWholeImageFromImageData(textHeavyPage());
+
+    expect(food).not.toBeNull();
+    const foodScore = food!.score;
+    const textScore = Math.max(textCrop?.score ?? 0, textWhole);
+
+    expect(foodScore).toBeGreaterThan(textScore);
+    expect(textWhole).toBeLessThan(PHOTO_SCORE_THRESHOLD);
+    expect(
+      pickBestHeroCandidate(
+        [
+          { index: 0, score: foodScore },
+          { index: 1, score: textScore },
+        ],
+        PHOTO_SCORE_THRESHOLD
+      )?.index
+    ).toBe(0);
   });
 });

@@ -80,12 +80,19 @@ function cellScore(
 
   // Flat near-white UI / text bands score low.
   const flatPenalty = meanL > 230 && std < 12 ? 0.15 : 1;
-  // Normalize roughly into 0–1.
+  // Dense glyph edges look "textured" but lack color — common false positive
+  // on recipe instruction screenshots.
+  const textPenalty =
+    meanSat < 0.1 && meanEdge > 8 ? 0.2 : meanSat < 0.14 && meanEdge > 14 ? 0.4 : 1;
+  // Normalize roughly into 0–1. Favor color/variance over raw edges so food
+  // photos beat text crops and ad chrome.
   const varianceScore = clamp(std / 45, 0, 1);
   const satScore = clamp(meanSat / 0.35, 0, 1);
   const edgeScore = clamp(meanEdge / 25, 0, 1);
 
-  return (0.45 * varianceScore + 0.3 * edgeScore + 0.25 * satScore) * flatPenalty;
+  return (
+    (0.4 * varianceScore + 0.15 * edgeScore + 0.45 * satScore) * flatPenalty * textPenalty
+  );
 }
 
 function largestConnectedRegion(
