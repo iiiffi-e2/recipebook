@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ensureUserFamily, getUserFamily } from "@/lib/supabase/family";
 import {
   fetchFamilyRecipes,
+  migrateRecipeCategories,
   saveRecipe,
   type SaveRecipeInput,
   type UploadedOriginalInput,
@@ -47,6 +48,7 @@ export async function GET() {
       return NextResponse.json({ recipes: [], family: null });
     }
 
+    await migrateRecipeCategories(supabase, family.familyId);
     const recipes = await fetchFamilyRecipes(supabase, family.familyId);
     return NextResponse.json({ recipes, family });
   } catch (error) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { CATEGORY_PROMPT, DEFAULT_RECIPE_CATEGORY } from "@/lib/categories";
 
 const OPENAI_TIMEOUT_MS = 90_000;
 
@@ -60,7 +61,7 @@ function buildFallbackRecipe(file: File | null, text: string | null) {
     cookTime: 0,
     servings: 4,
     difficulty: "medium",
-    category: "Imported",
+    category: DEFAULT_RECIPE_CATEGORY,
     tags: ["imported"],
   };
 }
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
             role: "system",
             content: `You are a recipe extraction expert. The user may provide MULTIPLE images that are different pages/screenshots of ONE single recipe. Combine them into ONE recipe. Return a JSON object with these fields:
               title, description, ingredients (array of {amount, unit, name, notes}), instructions (array of {step, text, timerMinutes}),
-              prepTime (minutes), cookTime (minutes), servings, difficulty (easy/medium/hard), cuisine, category, tags (array),
+              prepTime (minutes), cookTime (minutes), servings, difficulty (easy/medium/hard), cuisine, ${CATEGORY_PROMPT}, tags (array),
               cookingMethod, source. Clean formatting, remove ads and irrelevant text. Return ONLY valid JSON.`,
           },
           {
@@ -153,7 +154,7 @@ export async function POST(request: NextRequest) {
           {
             role: "system",
             content:
-              "Extract recipe information and return JSON with: title, description, ingredients (array of {amount, unit, name, notes}), instructions (array of {step, text, timerMinutes}), prepTime (minutes), cookTime (minutes), servings, difficulty (easy/medium/hard), category, tags (array). Return ONLY valid JSON.",
+              `Extract recipe information and return JSON with: title, description, ingredients (array of {amount, unit, name, notes}), instructions (array of {step, text, timerMinutes}), prepTime (minutes), cookTime (minutes), servings, difficulty (easy/medium/hard), ${CATEGORY_PROMPT}, tags (array). Return ONLY valid JSON.`,
           },
           { role: "user", content: effectiveText },
         ],

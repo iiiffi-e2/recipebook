@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { Clock, Heart, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { RecipeImage } from "@/components/recipe-image";
+import { TagLink } from "@/components/tag-link";
 import { formatDuration } from "@/lib/utils";
 import { useRecipeHero } from "@/lib/store";
 import type { Recipe } from "@/lib/types";
@@ -12,9 +13,10 @@ import type { Recipe } from "@/lib/types";
 interface RecipeCardProps {
   recipe: Recipe;
   index?: number;
+  activeTags?: string[];
 }
 
-export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
+export function RecipeCard({ recipe, index = 0, activeTags = [] }: RecipeCardProps) {
   const totalTime = recipe.prepTime + recipe.cookTime;
   const { heroImage } = useRecipeHero(recipe.id, recipe.heroImage);
 
@@ -24,8 +26,8 @@ export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: index * 0.05 }}
     >
-      <Link href={`/app/recipes/${recipe.id}`} className="group block">
-        <article className="overflow-hidden rounded-2xl bg-ivory shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-card)] hover:-translate-y-1">
+      <article className="overflow-hidden rounded-2xl bg-ivory shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-card)] hover:-translate-y-1">
+        <Link href={`/app/recipes/${recipe.id}`} className="group block">
           <div className="relative aspect-[4/3] overflow-hidden">
             <RecipeImage
               src={heroImage}
@@ -47,7 +49,7 @@ export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
               </div>
             )}
           </div>
-          <div className="p-5">
+          <div className="p-5 pb-3">
             <div className="mb-2 flex items-center gap-2">
               <Badge variant="sage" className="text-[10px]">
                 {recipe.category}
@@ -57,7 +59,7 @@ export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
                 {formatDuration(totalTime)}
               </span>
             </div>
-            <h3 className="font-serif text-xl font-medium text-charcoal group-hover:text-terracotta transition-colors">
+            <h3 className="font-serif text-xl font-medium text-charcoal transition-colors group-hover:text-terracotta">
               {recipe.title}
             </h3>
             {recipe.description && (
@@ -65,19 +67,16 @@ export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
                 {recipe.description}
               </p>
             )}
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {recipe.tags.slice(0, 3).map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full bg-cream px-2 py-0.5 text-[10px] text-charcoal-muted"
-                >
-                  {tag.replace(/-/g, " ")}
-                </span>
-              ))}
-            </div>
           </div>
-        </article>
-      </Link>
+        </Link>
+        {recipe.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-5 pb-5">
+            {recipe.tags.slice(0, 3).map((tag) => (
+              <TagLink key={tag} tag={tag} activeTags={activeTags} />
+            ))}
+          </div>
+        )}
+      </article>
     </motion.div>
   );
 }

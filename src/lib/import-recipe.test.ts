@@ -55,4 +55,16 @@ describe("normalizeExtractedRecipe", () => {
       { id: "2", step: 2, text: "Serve hot" },
     ]);
   });
+
+  it("normalizes category values during import", () => {
+    const recipe = normalizeExtractedRecipe(
+      {
+        title: "Steak Dinner",
+        category: "Entrée",
+      },
+      "imported-3"
+    );
+
+    expect(recipe.category).toBe("Main Course");
+  });
 });

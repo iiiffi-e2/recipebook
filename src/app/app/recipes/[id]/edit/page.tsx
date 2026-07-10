@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useRecipe, useCollections, useRecipesContext } from "@/lib/recipes";
+import { normalizeCategory, RECIPE_CATEGORIES, type RecipeCategory } from "@/lib/categories";
 import type { Collection, Ingredient, Instruction, Recipe } from "@/lib/types";
 
 function EditRecipeForm({
@@ -34,7 +35,9 @@ function EditRecipeForm({
   const [servings, setServings] = useState(recipe.servings);
   const [prepTime, setPrepTime] = useState(recipe.prepTime);
   const [cookTime, setCookTime] = useState(recipe.cookTime);
-  const [category, setCategory] = useState(recipe.category);
+  const [category, setCategory] = useState<RecipeCategory>(() =>
+    normalizeCategory(recipe.category)
+  );
   const [ingredients, setIngredients] = useState(() =>
     recipe.ingredients.map((i) => ({ ...i }))
   );
@@ -226,7 +229,17 @@ function EditRecipeForm({
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium">Category</label>
-              <Input value={category} onChange={(e) => setCategory(e.target.value)} />
+              <select
+                value={category}
+                onChange={(event) => setCategory(event.target.value as RecipeCategory)}
+                className="flex h-11 w-full rounded-xl border border-warm-gray bg-ivory px-4 py-2 text-sm text-charcoal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage focus-visible:ring-offset-1"
+              >
+                {RECIPE_CATEGORIES.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </section>

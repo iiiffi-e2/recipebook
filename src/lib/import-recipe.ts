@@ -1,3 +1,4 @@
+import { normalizeCategory } from "./categories";
 import type { Difficulty, MealType, Recipe } from "./types";
 
 const DEFAULT_HERO =
@@ -138,7 +139,7 @@ export function normalizeExtractedRecipe(
   });
 
   const heroImage = options?.heroImageUrl || previews[0] || DEFAULT_HERO;
-  const category = raw.category?.trim() || "Imported";
+  const category = normalizeCategory(raw.category);
   const tags = raw.tags ?? [];
 
   return {

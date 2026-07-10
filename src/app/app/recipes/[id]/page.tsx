@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TagLink } from "@/components/tag-link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { RecipeHero } from "@/components/recipe-hero";
@@ -338,9 +339,7 @@ export default function RecipePage({
       {/* Tags */}
       <div className="flex flex-wrap gap-2">
         {recipe.tags.map((tag) => (
-          <Badge key={tag} variant="outline">
-            {tag.replace(/-/g, " ")}
-          </Badge>
+          <TagLink key={tag} tag={tag} variant="badge" />
         ))}
       </div>
     </div>

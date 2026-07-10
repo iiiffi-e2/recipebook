@@ -43,7 +43,7 @@ export const demoRecipes: Recipe[] = [
     servings: 8,
     difficulty: "medium",
     cuisine: "American",
-    category: "Desserts",
+    category: "Dessert",
     tags: ["thanksgiving", "family-favorites", "holiday", "dessert", "apple", "pie"],
     mealTypes: ["dessert"],
     cookingMethod: "baking",
@@ -144,7 +144,7 @@ export const demoRecipes: Recipe[] = [
     servings: 12,
     difficulty: "easy",
     cuisine: "American",
-    category: "Soups",
+    category: "Soup",
     tags: ["slow-cooker", "one-pot", "family-favorites", "comfort-food", "freezes-well"],
     mealTypes: ["dinner"],
     cookingMethod: "stovetop",
@@ -216,7 +216,7 @@ export const demoRecipes: Recipe[] = [
     servings: 8,
     difficulty: "easy",
     cuisine: "American",
-    category: "Dinner",
+    category: "Main Course",
     tags: ["slow-cooker", "sunday-dinner", "comfort-food", "family-favorites", "one-pot"],
     mealTypes: ["dinner"],
     cookingMethod: "braising",
@@ -265,7 +265,7 @@ export const demoRecipes: Recipe[] = [
     servings: 24,
     difficulty: "easy",
     cuisine: "American",
-    category: "Desserts",
+    category: "Dessert",
     tags: ["dessert", "christmas", "kid-friendly", "quick-meals"],
     mealTypes: ["dessert"],
     cookingMethod: "baking",
@@ -319,7 +319,7 @@ export const demoRecipes: Recipe[] = [
     servings: 10,
     difficulty: "medium",
     cuisine: "Italian",
-    category: "Dinner",
+    category: "Main Course",
     tags: ["italian", "sunday-dinner", "slow-cooker", "family-favorites"],
     mealTypes: ["dinner"],
     cookingMethod: "simmering",
@@ -374,7 +374,7 @@ export const demoRecipes: Recipe[] = [
     servings: 4,
     difficulty: "easy",
     cuisine: "American",
-    category: "Breakfast",
+    category: "Bread & Baking",
     tags: ["breakfast", "kid-friendly", "quick-meals", "vegetarian"],
     mealTypes: ["breakfast"],
     cookingMethod: "griddle",
@@ -434,30 +434,7 @@ export const demoShoppingList: ShoppingItem[] = [
   { id: "s-9", name: "eggs", amount: "1", unit: "dozen", department: "Dairy", checked: false, recipeIds: ["morning-pancakes", "aunt-lisas-lemon-bars"] },
 ];
 
-export const categoryFilters = [
-  "All",
-  "Breakfast",
-  "Lunch",
-  "Dinner",
-  "Desserts",
-  "Appetizers",
-  "Soups",
-  "Salads",
-  "Bread",
-  "Holiday",
-];
-
-export const tagFilters = [
-  "family-favorites",
-  "quick-meals",
-  "thanksgiving",
-  "christmas",
-  "vegetarian",
-  "kid-friendly",
-  "freezes-well",
-  "one-pot",
-  "slow-cooker",
-];
+export { RECIPE_CATEGORY_FILTERS as categoryFilters } from "./categories";
 
 export function getRecipeById(id: string, recipes: Recipe[] = demoRecipes): Recipe | undefined {
   return recipes.find((r) => r.id === id);

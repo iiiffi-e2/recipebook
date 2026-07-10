@@ -14,6 +14,7 @@ import {
   RECIPE_UPLOADS_BUCKET,
 } from "@/lib/supabase/config";
 import { fetchRecipeCollectionMap, setRecipeCollections } from "@/lib/supabase/collections";
+import { isCanonicalCategory, normalizeCategory } from "@/lib/categories";
 
 type DbIngredient = {
   id: string;
@@ -184,7 +185,7 @@ function mapDbRecipeToApp(
     servings: row.servings ?? 4,
     difficulty: row.difficulty ?? "medium",
     cuisine: row.cuisine ?? undefined,
-    category: row.category ?? "Imported",
+    category: normalizeCategory(row.category),
     tags: row.tags ?? [],
     mealTypes: (row.meal_types ?? ["dinner"]) as MealType[],
     cookingMethod: row.cooking_method ?? undefined,
@@ -231,6 +232,48 @@ export async function fetchFamilyRecipes(
   return (data as DbRecipe[]).map((row) =>
     mapDbRecipeToApp(supabase, row, collectionMap.get(row.id) ?? [])
   );
+}
+
+export async function migrateRecipeCategories(
+  supabase: SupabaseClient,
+  familyId: string
+): Promise<number> {
+  const { data, error } = await supabase
+    .from("recipes")
+    .select("id, category")
+    .eq("family_id", familyId);
+
+  if (error) {
+    throw error;
+  }
+
+  let updated = 0;
+
+  for (const row of data ?? []) {
+    const currentCategory = row.category ?? "";
+    const normalizedCategory = normalizeCategory(currentCategory);
+
+    if (
+      currentCategory === normalizedCategory &&
+      isCanonicalCategory(currentCategory)
+    ) {
+      continue;
+    }
+
+    const { error: updateError } = await supabase
+      .from("recipes")
+      .update({ category: normalizedCategory })
+      .eq("id", row.id)
+      .eq("family_id", familyId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    updated += 1;
+  }
+
+  return updated;
 }
 
 export async function fetchRecipeById(
@@ -312,7 +355,7 @@ export async function saveRecipe(
       servings: recipe.servings ?? 4,
       difficulty: recipe.difficulty ?? "medium",
       cuisine: recipe.cuisine ?? null,
-      category: recipe.category ?? "Imported",
+      category: normalizeCategory(recipe.category),
       tags: recipe.tags ?? ["imported"],
       meal_types: recipe.mealTypes ?? ["dinner"],
       cooking_method: recipe.cookingMethod ?? null,
@@ -657,7 +700,7 @@ export async function updateRecipe(
       servings: recipe.servings ?? 4,
       difficulty: recipe.difficulty ?? "medium",
       cuisine: recipe.cuisine ?? null,
-      category: recipe.category ?? "Imported",
+      category: normalizeCategory(recipe.category),
       tags: recipe.tags ?? [],
       meal_types: recipe.mealTypes ?? ["dinner"],
       cooking_method: recipe.cookingMethod ?? null,
