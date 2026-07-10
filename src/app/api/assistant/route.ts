@@ -3,6 +3,7 @@ import {
   buildAssistantFallbackResponse,
   buildAssistantSystemPrompt,
 } from "@/lib/assistant-context";
+import { linkRecipeReferences } from "@/lib/assistant-message";
 import { createClient } from "@/lib/supabase/server";
 import { getUserFamily } from "@/lib/supabase/family";
 import { fetchFamilyRecipes } from "@/lib/supabase/recipes";
@@ -62,16 +63,22 @@ export async function POST(request: NextRequest) {
 
       if (response.ok) {
         const data = await response.json();
+        const rawMessage =
+          data.choices?.[0]?.message?.content ||
+          buildAssistantFallbackResponse(message, recipes, familyName);
+        const linked = linkRecipeReferences(rawMessage, recipes);
         return NextResponse.json({
-          message:
-            data.choices?.[0]?.message?.content ||
-            buildAssistantFallbackResponse(message, recipes, familyName),
+          message: linked.content,
+          recipeReferences: linked.recipeReferences,
         });
       }
     }
 
+    const fallback = buildAssistantFallbackResponse(message, recipes, familyName);
+    const linked = linkRecipeReferences(fallback, recipes);
     return NextResponse.json({
-      message: buildAssistantFallbackResponse(message, recipes, familyName),
+      message: linked.content,
+      recipeReferences: linked.recipeReferences,
     });
   } catch (error) {
     console.error("Assistant error:", error);

@@ -21,7 +21,7 @@ function formatRecipeForPrompt(recipe: Recipe): string {
     ? `\n  Description: ${truncate(recipe.description, 200)}`
     : "";
 
-  return `- ${recipe.title} (${recipe.category}, ${totalTime} min, tags: ${tags}${familyMember})
+  return `- [${recipe.title}](/app/recipes/${recipe.id}) (id: ${recipe.id}, ${recipe.category}, ${totalTime} min, tags: ${tags}${familyMember})
   Ingredients: ${ingredients || "not listed"}${description}
   Instructions:
   ${instructions || "not listed"}`;
@@ -44,11 +44,12 @@ ${cookbookContext}
 Guidelines:
 - Be warm, personal, and encouraging
 - Reference specific family recipes from the cookbook above when relevant
+- When mentioning a recipe by name, always link it using markdown: [Recipe Title](/app/recipes/{id}) using the exact id from the cookbook context
 - Only mention recipes that appear in the cookbook context — never invent or reference demo recipes
 - Help with meal planning, substitutions, scaling, and cooking techniques
 - Mention family memories and traditions when appropriate
 - Keep responses concise but helpful
-- Use markdown sparingly for lists
+- Use markdown sparingly for lists and recipe links
 - If the cookbook is empty, help the user get started with importing recipes`;
 }
 
@@ -68,7 +69,7 @@ export function buildAssistantFallbackResponse(
       .slice(0, 5)
       .map(
         (recipe) =>
-          `• **${recipe.title}** (${recipe.category}, ${recipe.prepTime + recipe.cookTime} min${recipe.source.familyMember ? `, from ${recipe.source.familyMember}` : ""})`
+          `• **[${recipe.title}](/app/recipes/${recipe.id})** (${recipe.category}, ${recipe.prepTime + recipe.cookTime} min${recipe.source.familyMember ? `, from ${recipe.source.familyMember}` : ""})`
       )
       .join("\n");
 

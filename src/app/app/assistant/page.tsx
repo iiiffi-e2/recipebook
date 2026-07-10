@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Send, Sparkles, ChefHat } from "lucide-react";
+import { AssistantMessageContent } from "@/components/assistant-message";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,9 +59,11 @@ export default function AssistantPage() {
       });
 
       let content: string;
+      let recipeReferences: string[] | undefined;
       if (response.ok) {
         const data = await response.json();
         content = data.message;
+        recipeReferences = data.recipeReferences;
       } else {
         content =
           "Sorry, I couldn't reach the cooking assistant right now. Please try again in a moment.";
@@ -70,6 +73,7 @@ export default function AssistantPage() {
         id: `msg-${crypto.randomUUID()}-assistant`,
         role: "assistant",
         content,
+        recipeReferences,
         timestamp: new Date().toISOString(),
       });
     } catch {
@@ -140,9 +144,13 @@ export default function AssistantPage() {
                     : "bg-cream text-charcoal"
                 }`}
               >
-                <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                  {message.content}
-                </p>
+                {message.role === "assistant" ? (
+                  <AssistantMessageContent content={message.content} />
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {message.content}
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}
