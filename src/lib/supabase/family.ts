@@ -155,7 +155,7 @@ export async function getFamilyMembers(
 ): Promise<FamilyMember[]> {
   const { data: members, error } = await supabase
     .from("family_members")
-    .select("id, role, recipes_contributed, joined_at, user_id")
+    .select("id, role, joined_at, user_id")
     .eq("family_id", familyId)
     .order("joined_at", { ascending: true });
 
@@ -164,16 +164,33 @@ export async function getFamilyMembers(
   }
 
   const userIds = (members ?? []).map((member) => member.user_id);
+  const memberUserIds = new Set(userIds);
   const profilesById = new Map<string, { email: string; display_name: string | null }>();
+  const recipeCountsByUser = new Map<string, number>();
 
   if (userIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, email, display_name")
-      .in("id", userIds);
+    const [{ data: profiles }, { data: recipes, error: recipesError }] = await Promise.all([
+      supabase.from("profiles").select("id, email, display_name").in("id", userIds),
+      supabase.from("recipes").select("created_by").eq("family_id", familyId),
+    ]);
+
+    if (recipesError) {
+      throw recipesError;
+    }
 
     for (const profile of profiles ?? []) {
       profilesById.set(profile.id, profile);
+    }
+
+    for (const recipe of recipes ?? []) {
+      if (!recipe.created_by || !memberUserIds.has(recipe.created_by)) {
+        continue;
+      }
+
+      recipeCountsByUser.set(
+        recipe.created_by,
+        (recipeCountsByUser.get(recipe.created_by) ?? 0) + 1
+      );
     }
   }
 
@@ -187,7 +204,7 @@ export async function getFamilyMembers(
       name,
       email,
       role: member.role,
-      recipesContributed: member.recipes_contributed ?? 0,
+      recipesContributed: recipeCountsByUser.get(member.user_id) ?? 0,
       joinedAt: member.joined_at,
     };
   });
