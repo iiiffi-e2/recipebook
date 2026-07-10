@@ -30,6 +30,8 @@ interface RecipesContextValue {
   refreshRecipes: () => Promise<void>;
   refreshCollections: () => Promise<void>;
   addCollection: (name: string, description?: string) => Promise<Collection | null>;
+  updateCollection: (id: string, name: string) => Promise<Collection | null>;
+  deleteCollection: (id: string) => Promise<boolean>;
 }
 
 const RecipesContext = createContext<RecipesContextValue | null>(null);
@@ -85,6 +87,53 @@ export function RecipesProvider({ children }: { children: ReactNode }) {
     [configured]
   );
 
+  const updateCollection = useCallback(
+    async (id: string, name: string): Promise<Collection | null> => {
+      if (!configured) return null;
+
+      const response = await fetch(`/api/collections/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+
+      if (!response.ok) return null;
+
+      const data = (await response.json()) as { collection?: Collection };
+      if (data.collection) {
+        setCollections((prev) =>
+          prev.map((collection) =>
+            collection.id === id ? data.collection! : collection
+          )
+        );
+      }
+      return data.collection ?? null;
+    },
+    [configured]
+  );
+
+  const deleteCollection = useCallback(
+    async (id: string): Promise<boolean> => {
+      if (!configured) return false;
+
+      const response = await fetch(`/api/collections/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) return false;
+
+      setCollections((prev) => prev.filter((collection) => collection.id !== id));
+      setRecipes((prev) =>
+        prev.map((recipe) => ({
+          ...recipe,
+          collections: recipe.collections.filter((collectionId) => collectionId !== id),
+        }))
+      );
+      return true;
+    },
+    [configured]
+  );
+
   const refreshRecipes = useCallback(async () => {
     if (!configured) {
       setRecipes(demoRecipes);
@@ -132,8 +181,10 @@ export function RecipesProvider({ children }: { children: ReactNode }) {
       refreshRecipes,
       refreshCollections,
       addCollection,
+      updateCollection,
+      deleteCollection,
     }),
-    [recipes, collections, loading, configured, family, refreshRecipes, refreshCollections, addCollection]
+    [recipes, collections, loading, configured, family, refreshRecipes, refreshCollections, addCollection, updateCollection, deleteCollection]
   );
 
   return <RecipesContext.Provider value={value}>{children}</RecipesContext.Provider>;
@@ -229,6 +280,20 @@ export function useFamilyInfo() {
 }
 
 export function useCollections() {
-  const { collections, addCollection, refreshCollections, usingDatabase } = useRecipesContext();
-  return { collections, addCollection, refreshCollections, usingDatabase };
+  const {
+    collections,
+    addCollection,
+    updateCollection,
+    deleteCollection,
+    refreshCollections,
+    usingDatabase,
+  } = useRecipesContext();
+  return {
+    collections,
+    addCollection,
+    updateCollection,
+    deleteCollection,
+    refreshCollections,
+    usingDatabase,
+  };
 }

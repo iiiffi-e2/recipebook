@@ -92,6 +92,35 @@ export async function createCollection(
   return mapDbCollection(data as DbCollection);
 }
 
+export async function updateCollection(
+  supabase: SupabaseClient,
+  collectionId: string,
+  familyId: string,
+  updates: { name?: string; description?: string }
+): Promise<Collection> {
+  const patch: Record<string, string | null> = {};
+
+  if (updates.name !== undefined) {
+    patch.name = updates.name.trim();
+  }
+
+  if (updates.description !== undefined) {
+    patch.description = updates.description.trim() || null;
+  }
+
+  const { data, error } = await supabase
+    .from("collections")
+    .update(patch)
+    .eq("id", collectionId)
+    .eq("family_id", familyId)
+    .select("*, collection_recipes(recipe_id)")
+    .single();
+
+  if (error || !data) throw error ?? new Error("Failed to update collection");
+
+  return mapDbCollection(data as DbCollection);
+}
+
 export async function deleteCollection(
   supabase: SupabaseClient,
   collectionId: string,

@@ -6,7 +6,7 @@ import { useMemo, useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import { Header } from "@/components/layout/header";
 import { RecipeCard } from "@/components/recipe-card";
-import { CollectionsSection } from "@/components/collections-section";
+import { CollectionsMenu } from "@/components/collections-menu";
 import { ActiveTagChip } from "@/components/tag-link";
 import { categoryFilters } from "@/lib/demo-data";
 import { useAllRecipes, useSearchRecipes, useRecipesContext, useCollections } from "@/lib/recipes";
@@ -75,7 +75,14 @@ function CookbookContent() {
     ? `${filteredRecipes.length} recipes found`
     : activeTags.length > 0
       ? `${filteredRecipes.length} recipes tagged ${activeTags.map(formatTagLabel).join(", ")}`
-      : usingDatabase
+      : activeCollectionId
+        ? (() => {
+            const collection = collections.find((c) => c.id === activeCollectionId);
+            return collection
+              ? `${filteredRecipes.length} recipes in ${collection.name}`
+              : `${filteredRecipes.length} recipes`;
+          })()
+        : usingDatabase
         ? allRecipes.length > 0
           ? `${allRecipes.length} recipes in your family cookbook`
           : "Import your first recipe to get started"
@@ -89,18 +96,43 @@ function CookbookContent() {
             ? `Results for "${searchQuery}"`
             : activeTags.length > 0
               ? "Tagged Recipes"
-              : "Our Cookbook"
+              : activeCollectionId
+                ? collections.find((c) => c.id === activeCollectionId)?.name ?? "Collection"
+                : "Our Cookbook"
         }
         subtitle={subtitle}
         showSearch
       />
 
-      {!searchQuery && (
-        <CollectionsSection
-          activeCollectionId={activeCollectionId}
-          onSelectCollection={setActiveCollectionId}
-        />
-      )}
+      <div className="mb-6 flex flex-wrap items-center gap-3">
+        {!searchQuery && (
+          <>
+            <CollectionsMenu
+              activeCollectionId={activeCollectionId}
+              onSelectCollection={setActiveCollectionId}
+            />
+            <div className="hidden h-6 w-px bg-warm-gray/60 sm:block" aria-hidden />
+          </>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {categoryFilters.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setActiveCategory(cat)}
+              className={cn(
+                "rounded-full px-5 py-2.5 text-sm font-medium transition-all sm:text-base",
+                activeCategory === cat
+                  ? "bg-terracotta text-ivory shadow-sm"
+                  : "bg-ivory text-charcoal-muted hover:bg-warm-gray hover:text-charcoal"
+              )}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {activeTags.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -109,24 +141,6 @@ function CookbookContent() {
           ))}
         </div>
       )}
-
-      <div className="mb-8 flex flex-wrap gap-2">
-        {categoryFilters.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => setActiveCategory(cat)}
-            className={cn(
-              "rounded-full px-4 py-2 text-sm transition-all",
-              activeCategory === cat
-                ? "bg-terracotta text-ivory"
-                : "bg-ivory text-charcoal-muted hover:bg-warm-gray"
-            )}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
 
       {loading ? (
         <div className="rounded-2xl bg-ivory p-16 text-center">
