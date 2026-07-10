@@ -34,8 +34,9 @@ export async function GET(request: Request) {
             }
           }
         } else {
-          await ensureProfile(supabase, user.id, user.email);
-          await ensureUserFamily(supabase, user.id, "My Family Cookbook", user.email);
+          const db = admin ?? supabase;
+          await ensureProfile(db, user.id, user.email);
+          await ensureUserFamily(db, user.id, "My Family Cookbook", user.email);
         }
       }
 

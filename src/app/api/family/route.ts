@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   ensureProfile,
@@ -71,8 +72,10 @@ export async function POST(request: Request) {
     }
 
     const body = (await request.json().catch(() => ({}))) as { familyName?: string };
+    const admin = createAdminClient();
+    const db = admin ?? supabase;
     const family = await ensureUserFamily(
-      supabase,
+      db,
       user.id,
       body.familyName?.trim() || "My Family Cookbook",
       user.email ?? undefined

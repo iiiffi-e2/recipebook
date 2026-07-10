@@ -55,6 +55,10 @@ $$;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE family_invites ENABLE ROW LEVEL SECURITY;
 
+CREATE POLICY "Users can view own profile"
+  ON profiles FOR SELECT
+  USING (id = auth.uid());
+
 CREATE POLICY "Users can view profiles of family members"
   ON profiles FOR SELECT
   USING (

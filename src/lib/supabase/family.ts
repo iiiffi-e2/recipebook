@@ -48,18 +48,36 @@ export async function ensureProfile(
   userId: string,
   email: string
 ): Promise<void> {
-  const { error } = await supabase.from("profiles").upsert(
-    {
-      id: userId,
-      email: email.toLowerCase(),
-      display_name: displayNameFromEmail(email),
-    },
-    { onConflict: "id" }
-  );
+  const payload = {
+    id: userId,
+    email: email.toLowerCase(),
+    display_name: displayNameFromEmail(email),
+  };
 
-  if (error) {
-    throw error;
+  const { error: insertError } = await supabase.from("profiles").insert(payload);
+
+  if (!insertError) {
+    return;
   }
+
+  // Profile already exists — update display info (avoid upsert; it needs SELECT on the row under RLS).
+  if (insertError.code === "23505") {
+    const { error: updateError } = await supabase
+      .from("profiles")
+      .update({
+        email: payload.email,
+        display_name: payload.display_name,
+      })
+      .eq("id", userId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return;
+  }
+
+  throw insertError;
 }
 
 export async function getUserFamily(
