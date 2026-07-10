@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { acceptFamilyInvite } from "@/lib/supabase/family";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -25,7 +26,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invite token is required" }, { status: 400 });
     }
 
-    const family = await acceptFamilyInvite(supabase, user.id, user.email, token);
+    const admin = createAdminClient();
+    if (!admin) {
+      return NextResponse.json(
+        { error: "Server is missing Supabase service role configuration" },
+        { status: 503 }
+      );
+    }
+
+    const family = await acceptFamilyInvite(admin, user.id, user.email, token);
     return NextResponse.json({ family });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to accept invite";

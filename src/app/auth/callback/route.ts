@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { acceptFamilyInvite, ensureProfile, ensureUserFamily } from "@/lib/supabase/family";
 
@@ -18,15 +19,22 @@ export async function GET(request: Request) {
       } = await supabase.auth.getUser();
 
       if (user?.email) {
-        await ensureProfile(supabase, user.id, user.email);
+        const admin = createAdminClient();
 
         if (inviteToken) {
-          try {
-            await acceptFamilyInvite(supabase, user.id, user.email, inviteToken);
-          } catch (inviteError) {
-            console.error("Accept invite on callback failed:", inviteError);
+          if (!admin) {
+            console.error(
+              "Accept invite on callback failed: missing SUPABASE_SERVICE_ROLE_KEY"
+            );
+          } else {
+            try {
+              await acceptFamilyInvite(admin, user.id, user.email, inviteToken);
+            } catch (inviteError) {
+              console.error("Accept invite on callback failed:", inviteError);
+            }
           }
         } else {
+          await ensureProfile(supabase, user.id, user.email);
           await ensureUserFamily(supabase, user.id, "My Family Cookbook", user.email);
         }
       }
