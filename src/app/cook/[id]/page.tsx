@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useState, useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { TimerButton } from "@/components/cooking-timer";
 import { ServingsAdjuster } from "@/components/servings-adjuster";
+import { RecipeImage } from "@/components/recipe-image";
 import { useRecipe } from "@/lib/recipes";
 import { useAppStore } from "@/lib/store";
 import { scaleIngredients } from "@/lib/scale-ingredients";
@@ -200,12 +200,12 @@ export default function CookingModePage({
 
       {/* Hero image background */}
       <div className="pointer-events-none fixed inset-0 -z-10 opacity-10">
-        <Image
+        <RecipeImage
           src={recipe.heroImage}
           alt=""
-          fill
-          className="object-cover"
+          title={recipe.title}
           sizes="100vw"
+          placeholderSize="lg"
         />
       </div>
     </div>

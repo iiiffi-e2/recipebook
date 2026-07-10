@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { Plus, X } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
+import { RecipeImage } from "@/components/recipe-image";
 import { useAppStore } from "@/lib/store";
 import { demoRecipes } from "@/lib/demo-data";
 import { getRecipeById } from "@/lib/demo-data";
@@ -99,12 +99,12 @@ export default function PlannerPage() {
                           </button>
                           <Link href={`/app/recipes/${recipe.id}`}>
                             <div className="relative h-12 w-full overflow-hidden rounded-md mb-1">
-                              <Image
+                              <RecipeImage
                                 src={recipe.heroImage}
                                 alt={recipe.title}
-                                fill
-                                className="object-cover"
+                                title={recipe.title}
                                 sizes="150px"
+                                placeholderSize="sm"
                               />
                             </div>
                             <p className="text-xs font-medium line-clamp-2">{recipe.title}</p>
@@ -130,12 +130,12 @@ export default function PlannerPage() {
               className="flex items-center gap-4 rounded-2xl bg-ivory p-4 shadow-[var(--shadow-soft)]"
             >
               <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl">
-                <Image
+                <RecipeImage
                   src={recipe.heroImage}
                   alt={recipe.title}
-                  fill
-                  className="object-cover"
+                  title={recipe.title}
                   sizes="64px"
+                  placeholderSize="sm"
                 />
               </div>
               <div className="flex-1 min-w-0">

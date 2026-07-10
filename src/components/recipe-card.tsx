@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import { Clock, Heart, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { RecipeImage } from "@/components/recipe-image";
 import { formatDuration } from "@/lib/utils";
 import { useRecipeHero } from "@/lib/store";
 import type { Recipe } from "@/lib/types";
@@ -14,34 +14,9 @@ interface RecipeCardProps {
   index?: number;
 }
 
-function RecipeCardImage({ recipe }: { recipe: Recipe }) {
-  const { heroImage } = useRecipeHero(recipe.id, recipe.heroImage);
-  const isLocal = heroImage.startsWith("blob:") || heroImage.startsWith("data:");
-
-  if (isLocal) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={heroImage}
-        alt={recipe.title}
-        className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-      />
-    );
-  }
-
-  return (
-    <Image
-      src={heroImage}
-      alt={recipe.title}
-      fill
-      className="object-cover transition-transform duration-500 group-hover:scale-105"
-      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-    />
-  );
-}
-
 export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
   const totalTime = recipe.prepTime + recipe.cookTime;
+  const { heroImage } = useRecipeHero(recipe.id, recipe.heroImage);
 
   return (
     <motion.div
@@ -52,7 +27,14 @@ export function RecipeCard({ recipe, index = 0 }: RecipeCardProps) {
       <Link href={`/app/recipes/${recipe.id}`} className="group block">
         <article className="overflow-hidden rounded-2xl bg-ivory shadow-[var(--shadow-soft)] transition-all duration-300 hover:shadow-[var(--shadow-card)] hover:-translate-y-1">
           <div className="relative aspect-[4/3] overflow-hidden">
-            <RecipeCardImage recipe={recipe} />
+            <RecipeImage
+              src={heroImage}
+              alt={recipe.title}
+              title={recipe.title}
+              imageClassName="transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              placeholderSize="md"
+            />
             {recipe.isFavorite && (
               <div className="absolute right-3 top-3 rounded-full bg-ivory/90 p-2 backdrop-blur-sm">
                 <Heart className="h-4 w-4 fill-terracotta text-terracotta" />

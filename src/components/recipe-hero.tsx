@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useState } from "react";
-import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Upload,
@@ -12,6 +11,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RecipeImage } from "@/components/recipe-image";
 import { useRecipesContext } from "@/components/providers/recipes-provider";
 import { useAppStore, useRecipeHero, type HeroImageSource } from "@/lib/store";
 import type { Recipe } from "@/lib/types";
@@ -27,30 +27,6 @@ const sourceLabels: Record<HeroImageSource, string> = {
   upload: "Your photo",
   generated: "AI generated",
 };
-
-function HeroImage({ src, alt }: { src: string; alt: string }) {
-  const isLocal = src.startsWith("blob:") || src.startsWith("data:");
-
-  if (isLocal) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
-    );
-  }
-
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      fill
-      className="object-cover"
-      sizes="(max-width: 1024px) 100vw, 1024px"
-      priority
-      loading="eager"
-      unoptimized={isLocal || src.startsWith("data:")}
-    />
-  );
-}
 
 export function RecipeHero({ recipe, children }: RecipeHeroProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -190,7 +166,15 @@ export function RecipeHero({ recipe, children }: RecipeHeroProps) {
         onMouseEnter={() => setShowControls(true)}
         onMouseLeave={() => setShowControls(false)}
       >
-        <HeroImage src={heroImage} alt={recipe.title} />
+        <RecipeImage
+          src={heroImage}
+          alt={recipe.title}
+          title={recipe.title}
+          showInitial
+          sizes="(max-width: 1024px) 100vw, 1024px"
+          priority
+          placeholderSize="lg"
+        />
 
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-charcoal/50 backdrop-blur-sm">

@@ -2,10 +2,10 @@
 
 import { motion } from "framer-motion";
 import { BookOpen, Mic, Heart, MessageCircle } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
+import { RecipeImage } from "@/components/recipe-image";
 import { demoRecipes } from "@/lib/demo-data";
 import { formatDate } from "@/lib/utils";
 
@@ -43,12 +43,11 @@ export default function MemoriesPage() {
                 className="overflow-hidden rounded-2xl bg-ivory shadow-[var(--shadow-soft)]"
               >
                 <div className="grid md:grid-cols-3">
-                  <div className="relative aspect-[4/3] md:aspect-auto">
-                    <Image
+                  <div className="relative aspect-[4/3] md:aspect-auto md:min-h-[180px]">
+                    <RecipeImage
                       src={memory.recipe.heroImage}
                       alt={memory.recipe.title}
-                      fill
-                      className="object-cover"
+                      title={memory.recipe.title}
                       sizes="(max-width: 768px) 100vw, 33vw"
                     />
                   </div>
